@@ -1,5 +1,8 @@
 from backend.app.database import SessionLocal, User, CropInfo, GeneticTrait, ClimateData, PredictionRecord, init_db
 from datetime import datetime
+from passlib.context import CryptContext
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def seed_data():
     db = SessionLocal()
@@ -14,11 +17,11 @@ def seed_data():
 
         print("Seeding database...")
 
-        # 1. Users
+        # 1. Users with hashed passwords
         users = [
-            User(username="AD-nishan", email="nishan@rvce.edu.in", role="admin"),
-            User(username="AD-manya", email="manya@rvce.edu.in", role="admin"),
-            User(username="researcher01", email="res01@rvce.edu.in", role="user"),
+            User(username="AD-101", full_name="Nishan Admin", email="nishan@rvce.edu.in", phone_number="", password_hash=pwd_context.hash("admin123"), role="admin"),
+            User(username="AD-102", full_name="Manya Admin", email="manya@rvce.edu.in", phone_number="", password_hash=pwd_context.hash("admin123"), role="admin"),
+            User(username="researcher01", full_name="Research User", email="res01@rvce.edu.in", phone_number="", password_hash=pwd_context.hash("user123"), role="user"),
         ]
         db.add_all(users)
         db.commit()

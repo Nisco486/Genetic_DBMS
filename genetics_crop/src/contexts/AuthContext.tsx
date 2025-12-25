@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { User, UserRole, AuthState } from '@/types/auth';
-import { authenticateUser, clearSession, createUser, loadSession, persistSession } from '@/lib/authStorage';
 
 interface AuthResult {
   success: boolean;
@@ -9,7 +8,13 @@ interface AuthResult {
 
 interface AuthContextType extends AuthState {
   login: (email: string, password: string, role: UserRole) => Promise<AuthResult>;
-  signUp: (params: { email: string; password: string; role: UserRole; username?: string }) => Promise<AuthResult>;
+  signUp: (params: {
+    email: string;
+    password: string;
+    role: UserRole;
+    username: string;
+    full_name: string;
+  }) => Promise<AuthResult>;
   logout: () => void;
 }
 
@@ -22,15 +27,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isLoading: true,
   });
 
-  // Restore session on load so refresh keeps the user logged in
   useEffect(() => {
-    const sessionUser = loadSession();
+    const sessionUser = localStorage.getItem('user');
     if (sessionUser) {
-      setAuthState({
-        user: sessionUser,
-        isAuthenticated: true,
-        isLoading: false,
-      });
+      try {
+        const user = JSON.parse(sessionUser);
+        setAuthState({
+          user,
+          isAuthenticated: true,
+          isLoading: false,
+        });
+      } catch {
+        setAuthState(prev => ({ ...prev, isLoading: false }));
+      }
     } else {
       setAuthState(prev => ({ ...prev, isLoading: false }));
     }
@@ -41,76 +50,81 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     await new Promise(resolve => setTimeout(resolve, 400));
 
-    const result = authenticateUser(email, password, role);
-    if (result.user) {
+    // Simple demo authentication
+    const demoAccounts = {
+      'nishan@rvce.edu.in': { password: 'admin123', role: 'admin', name: 'Nishan Admin', username: 'AD-101' },
+      'manya@rvce.edu.in': { password: 'admin123', role: 'admin', name: 'Manya Admin', username: 'AD-102' },
+      'res01@rvce.edu.in': { password: 'user123', role: 'user', name: 'Research User', username: 'researcher01' },
+    };
+
+    const account = demoAccounts[email as keyof typeof demoAccounts];
+
+    if (account && account.password === password && account.role === role) {
+      const user: User = {
+        id: Date.now().toString(),
+        email,
+        name: account.name,
+        role,
+      };
+
       setAuthState({
-        user: result.user,
+        user,
         isAuthenticated: true,
         isLoading: false,
       });
-      persistSession(result.user);
+      localStorage.setItem('user', JSON.stringify(user));
       return { success: true };
     }
 
     setAuthState(prev => ({ ...prev, isLoading: false }));
-    return { success: false, message: result.error ?? 'Invalid credentials.' };
+    return { success: false, message: 'Invalid credentials.' };
   }, []);
 
-  const signUp = useCallback(async ({ email, password, role, username }: { email: string; password: string; role: UserRole; username?: string; }): Promise<AuthResult> => {
-    if (!email || !password) {
-      return { success: false, message: 'Email and password are required.' };
-    }
-
-    if (password.length < 8) {
-      return { success: false, message: 'Password must be at least 8 characters long.' };
-    }
-
-    if (role === 'admin') {
-      const trimmedUsername = username?.trim() ?? '';
-      if (!trimmedUsername) {
-        return { success: false, message: 'Admin accounts require a username.' };
-      }
-      if (!trimmedUsername.startsWith('AD-') || trimmedUsername.slice(3).length < 5) {
-        return { success: false, message: 'Admin username must start with "AD-" and include at least 5 characters after it.' };
-      }
-    }
-
+  const signUp = useCallback(async (params: {
+    email: string;
+    password: string;
+    role: UserRole;
+    username: string;
+    full_name: string;
+  }): Promise<AuthResult> => {
     setAuthState(prev => ({ ...prev, isLoading: true }));
 
     await new Promise(resolve => setTimeout(resolve, 400));
 
-    const newUser: User = {
-      id: crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(),
-      email,
-      name: role === 'admin' ? username || 'Admin User' : username || 'Researcher',
-      role,
-    };
-
-    const result = createUser(
-      {
-        id: newUser.id,
-        email: newUser.email,
-        name: newUser.name,
-        role: newUser.role,
-      },
-      password
-    );
-    if (result.user) {
-      setAuthState({
-        user: result.user,
-        isAuthenticated: true,
-        isLoading: false,
-      });
-      persistSession(result.user);
-      return { success: true };
+    // Validate username format for admin
+    if (params.role === 'admin' && !/^AD-\d{3}$/.test(params.username)) {
+      setAuthState(prev => ({ ...prev, isLoading: false }));
+      return { success: false, message: 'Admin username must be in format AD-### (e.g., AD-101)' };
     }
 
-    setAuthState(prev => ({ ...prev, isLoading: false }));
-    return { success: false, message: result.error ?? 'Could not create account.' };
+    if (params.role !== 'admin' && params.username.length < 6) {
+      setAuthState(prev => ({ ...prev, isLoading: false }));
+      return { success: false, message: 'Username must be at least 6 characters' };
+    }
+
+    if (params.password.length < 8) {
+      setAuthState(prev => ({ ...prev, isLoading: false }));
+      return { success: false, message: 'Password must be at least 8 characters' };
+    }
+
+    const user: User = {
+      id: Date.now().toString(),
+      email: params.email,
+      name: params.full_name,
+      role: params.role,
+    };
+
+    setAuthState({
+      user,
+      isAuthenticated: true,
+      isLoading: false,
+    });
+    localStorage.setItem('user', JSON.stringify(user));
+    return { success: true };
   }, []);
 
   const logout = useCallback(() => {
-    clearSession();
+    localStorage.removeItem('user');
     setAuthState({
       user: null,
       isAuthenticated: false,

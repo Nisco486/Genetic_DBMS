@@ -19,6 +19,7 @@ import BulkUpload from "./pages/admin/BulkUpload";
 import UserManagement from "./pages/admin/UserManagement";
 import MLModel from "./pages/admin/MLModel";
 import Settings from "./pages/admin/Settings";
+import DataExplorer from "./pages/user/DataExplorer";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -29,15 +30,15 @@ function ProtectedRoute({ children, requiredRole }: { children: React.ReactNode;
   if (isLoading) {
     return null;
   }
-  
+
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
-  
+
   if (requiredRole && user?.role !== requiredRole) {
     return <Navigate to={user?.role === 'admin' ? '/admin' : '/dashboard'} replace />;
   }
-  
+
   return <>{children}</>;
 }
 
@@ -54,7 +55,7 @@ function AppRoutes() {
       <Route path="/admin/ml-model" element={<ProtectedRoute requiredRole="admin"><MLModel /></ProtectedRoute>} />
       <Route path="/admin/settings" element={<ProtectedRoute requiredRole="admin"><Settings /></ProtectedRoute>} />
       <Route path="/dashboard" element={<ProtectedRoute requiredRole="user"><UserDashboard /></ProtectedRoute>} />
-      <Route path="/dashboard/crops" element={<ProtectedRoute requiredRole="user"><CropRecords /></ProtectedRoute>} />
+      <Route path="/dashboard/crops" element={<ProtectedRoute requiredRole="user"><DataExplorer /></ProtectedRoute>} />
       <Route path="/dashboard/traits" element={<ProtectedRoute requiredRole="user"><GeneticTraits /></ProtectedRoute>} />
       <Route path="/dashboard/climate" element={<ProtectedRoute requiredRole="user"><ClimateData /></ProtectedRoute>} />
       <Route path="/dashboard/soil" element={<ProtectedRoute requiredRole="user"><SoilAnalysis /></ProtectedRoute>} />

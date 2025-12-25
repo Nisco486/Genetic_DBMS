@@ -25,22 +25,16 @@ interface SidebarProps {
 }
 
 const adminLinks = [
-  { icon: LayoutDashboard, label: 'Dashboard', href: '/admin/dashboard' },
-  { icon: Database, label: 'Data Management', href: '/admin/data-management' },
-  { icon: Upload, label: 'Bulk Upload', href: '/admin/bulk-upload' },
-  { icon: Users, label: 'User Management', href: '/admin/users' },
-  { icon: Brain, label: 'ML Model', href: '/admin/ml-model' },
+  { icon: LayoutDashboard, label: 'Admin Terminal', href: '/admin/dashboard' },
+  { icon: Database, label: 'Records Management', href: '/admin/data-management' },
+  { icon: LineChart, label: 'System Health', href: '/admin/monitoring' },
   { icon: Settings, label: 'Settings', href: '/admin/settings' },
 ];
 
 const userLinks = [
-  { icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard' },
-  { icon: Leaf, label: 'Crop Records', href: '/dashboard/crops' },
-  { icon: Dna, label: 'Genetic Traits', href: '/dashboard/traits' },
-  { icon: CloudSun, label: 'Climate Data', href: '/dashboard/climate' },
-  { icon: FlaskConical, label: 'Soil Analysis', href: '/dashboard/soil' },
-  { icon: Brain, label: 'Predictions', href: '/dashboard/predictions' },
-  { icon: FileSpreadsheet, label: 'Reports', href: '/dashboard/reports' },
+  { icon: Brain, label: 'Prediction Workspace', href: '/dashboard' },
+  { icon: FileSpreadsheet, label: 'Research Reports', href: '/dashboard/reports' },
+  { icon: Database, label: 'Data Explorer', href: '/dashboard/crops' },
 ];
 
 export function Sidebar({ isOpen, onToggle }: SidebarProps) {

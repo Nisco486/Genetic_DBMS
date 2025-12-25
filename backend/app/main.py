@@ -43,6 +43,25 @@ ENCODER_PATH = os.path.join(BASE_DIR, "data", "processed", "label_encoder.pkl")
 model = None
 encoder = None
 
+from passlib.context import CryptContext
+from pydantic import BaseModel
+import re
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+class UserSignup(BaseModel):
+    username: str
+    full_name: str
+    email: str
+    phone_number: str
+    password: str
+    role: str
+
+class UserLogin(BaseModel):
+    email: str
+    password: str
+    role: str
+
 @app.on_event("startup")
 def startup_event():
     global model, encoder
@@ -54,6 +73,51 @@ def startup_event():
         init_db()
     except Exception as e:
         print(f"Database initialization failed: {e}. Ensure PostgreSQL is running.")
+
+@app.post("/signup")
+def signup(user: UserSignup, db: Session = Depends(get_db)):
+    # Check if user exists
+    db_user = db.query(User).filter(User.email == user.email).first()
+    if db_user:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    
+    # Validation for Admin username
+    if user.role == "admin":
+        if not re.match(r"^AD-\d{3}$", user.username):
+            raise HTTPException(status_code=400, detail="Admin username must be in the format 'AD-###' (e.g. AD-123)")
+    elif len(user.username) < 6:
+        raise HTTPException(status_code=400, detail="Username must be at least 6 characters")
+
+    hashed_password = pwd_context.hash(user.password)
+    new_user = User(
+        username=user.username,
+        full_name=user.full_name,
+        email=user.email,
+        phone_number=user.phone_number,
+        password_hash=hashed_password,
+        role=user.role
+    )
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    return {"message": "User created successfully", "user": {"username": new_user.username, "role": new_user.role}}
+
+@app.post("/login")
+def login(user: UserLogin, db: Session = Depends(get_db)):
+    db_user = db.query(User).filter(User.email == user.email, User.role == user.role).first()
+    if not db_user or not pwd_context.verify(user.password, db_user.password_hash):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    
+    return {
+        "message": "Login successful",
+        "user": {
+            "id": db_user.user_id,
+            "username": db_user.username,
+            "name": db_user.full_name,
+            "email": db_user.email,
+            "role": db_user.role
+        }
+    }
 
 @app.get("/")
 def read_root():

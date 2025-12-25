@@ -14,7 +14,9 @@ import type { UserRole } from '@/types/auth';
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [username, setUsername] = useState('');
+  const [fullName, setFullName] = useState('');
   const [selectedRole, setSelectedRole] = useState<UserRole>('user');
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const { login, signUp, isLoading } = useAuth();
@@ -60,13 +62,67 @@ export default function Login() {
       return;
     }
 
-    const result = await signUp({ email, password, role: selectedRole, username });
+    // Signup validation
+    if (!fullName || !username) {
+      toast({
+        title: 'Missing information',
+        description: 'Please fill in all required fields.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      toast({
+        title: 'Password mismatch',
+        description: 'Passwords do not match.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (password.length < 8) {
+      toast({
+        title: 'Weak password',
+        description: 'Password must be at least 8 characters long.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (selectedRole === 'admin') {
+      if (!/^AD-\d{3}$/.test(username)) {
+        toast({
+          title: 'Invalid username',
+          description: 'Admin username must be in format AD-### (e.g., AD-101)',
+          variant: 'destructive',
+        });
+        return;
+      }
+    } else if (username.length < 6) {
+      toast({
+        title: 'Invalid username',
+        description: 'Username must be at least 6 characters.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const result = await signUp({
+      email,
+      password,
+      role: selectedRole,
+      username,
+      full_name: fullName,
+      phone_number: ''
+    });
+
     if (result.success) {
       toast({
         title: 'Account created',
-        description: selectedRole === 'admin' ? 'Admin account ready.' : 'Welcome to Genetic Crop.',
+        description: 'Your account has been created successfully. Please sign in.',
       });
-      navigate(selectedRole === 'admin' ? '/admin/dashboard' : '/dashboard');
+      setMode('signin');
     } else {
       toast({
         title: 'Could not create account',
@@ -90,9 +146,11 @@ export default function Login() {
 
         <Card variant="elevated" className="border border-border shadow-xl bg-background">
           <CardHeader className="text-center pb-2">
-            <CardTitle className="text-2xl font-bold">{mode === 'signin' ? 'Welcome back' : 'Create your account'}</CardTitle>
+            <CardTitle className="text-2xl font-bold">
+              {mode === 'signin' ? 'Welcome back' : 'Create your account'}
+            </CardTitle>
             <CardDescription>
-              {mode === 'signin' ? 'Sign in to access your dashboard' : 'Get started to save your credentials'}
+              {mode === 'signin' ? 'Sign in to access your dashboard' : 'Get started with your research account'}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -117,6 +175,38 @@ export default function Login() {
             </Tabs>
 
             <form onSubmit={handleSubmit} className="space-y-4">
+              {mode === 'signup' && (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="fullName">Full Name</Label>
+                    <Input
+                      id="fullName"
+                      type="text"
+                      placeholder="John Doe"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      className="h-11"
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="username">
+                      {selectedRole === 'admin' ? 'Admin Username (AD-###)' : 'Username'}
+                    </Label>
+                    <Input
+                      id="username"
+                      type="text"
+                      placeholder={selectedRole === 'admin' ? 'AD-101' : 'username'}
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      className="h-11"
+                      required
+                    />
+                  </div>
+                </>
+              )}
+
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <Input
@@ -126,22 +216,9 @@ export default function Login() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="h-11"
+                  required
                 />
               </div>
-
-              {mode === 'signup' && selectedRole === 'admin' && (
-                <div className="space-y-2">
-                  <Label htmlFor="username">Admin Username (must start with AD-)</Label>
-                  <Input
-                    id="username"
-                    type="text"
-                    placeholder="AD-lead01"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    className="h-11"
-                  />
-                </div>
-              )}
 
               <div className="space-y-2">
                 <Label htmlFor="password">Password</Label>
@@ -152,8 +229,24 @@ export default function Login() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="h-11"
+                  required
                 />
               </div>
+
+              {mode === 'signup' && (
+                <div className="space-y-2">
+                  <Label htmlFor="confirmPassword">Confirm Password</Label>
+                  <Input
+                    id="confirmPassword"
+                    type="password"
+                    placeholder="••••••••"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="h-11"
+                    required
+                  />
+                </div>
+              )}
 
               <Button
                 type="submit"
@@ -173,16 +266,18 @@ export default function Login() {
               </Button>
             </form>
 
-            <div className="mt-6 p-4 rounded-lg bg-muted/50 border border-border space-y-2">
-              <p className="text-xs text-muted-foreground flex items-center gap-2">
-                <Shield className="w-4 h-4 text-primary" />
-                Passwords for new accounts must be at least 8 characters.
-              </p>
-              <p className="text-xs text-muted-foreground flex items-center gap-2">
-                <UserIcon className="w-4 h-4 text-primary" />
-                Admin usernames must start with "AD-" plus at least 5 characters.
-              </p>
-            </div>
+            {mode === 'signup' && (
+              <div className="mt-6 p-4 rounded-lg bg-muted/50 border border-border space-y-2">
+                <p className="text-xs text-muted-foreground flex items-center gap-2">
+                  <Shield className="w-4 h-4 text-primary" />
+                  Passwords must be at least 8 characters long.
+                </p>
+                <p className="text-xs text-muted-foreground flex items-center gap-2">
+                  <UserIcon className="w-4 h-4 text-primary" />
+                  Admin usernames must be in format "AD-###" (e.g., AD-101).
+                </p>
+              </div>
+            )}
           </CardContent>
         </Card>
       </motion.div>

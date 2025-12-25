@@ -1,93 +1,50 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
-import { StatCard } from '@/components/dashboard/StatCard';
-import { DataTable, StatusBadge } from '@/components/dashboard/DataTable';
-import { ChartCard } from '@/components/dashboard/ChartCard';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
-  Leaf,
-  Dna,
-  CloudSun,
-  FlaskConical,
   Brain,
-  TrendingUp,
-  Search,
   Loader2,
   Upload,
   FileText,
   X,
+  CheckCircle2,
+  TrendingUp,
+  Droplets,
+  Thermometer,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cropApi } from '@/lib/api';
 
-const cropColumns = [
-  { key: 'name', label: 'Crop Name' },
-  { key: 'variety', label: 'Variety' },
-  { key: 'yieldPotential', label: 'Yield Potential' },
-  { key: 'diseaseResistance', label: 'Disease Resistance' },
-  { key: 'status', label: 'Status', render: (v: string) => <StatusBadge status={v} /> },
-];
-
-const yieldTrends = [
-  { name: 'Week 1', value: 0 },
-  { name: 'Week 2', value: 0 },
-  { name: 'Week 3', value: 0 },
-  { name: 'Week 4', value: 0 },
-  { name: 'Week 5', value: 0 },
-  { name: 'Week 6', value: 0 },
-];
-
 export default function UserDashboard() {
-  const [stats, setStats] = useState<{
-    title: string;
-    value: string;
-    change: string;
-    changeType: 'positive' | 'neutral' | 'negative';
-    icon: any;
-  }[]>([
-    { title: 'Crop Varieties', value: '0', change: 'Loading...', changeType: 'neutral', icon: Leaf },
-    { title: 'Genetic Markers', value: '0', change: 'Loading...', changeType: 'neutral', icon: Dna },
-    { title: 'Climate Records', value: '0', change: 'Loading...', changeType: 'neutral', icon: CloudSun },
-    { title: 'Predictions Made', value: '0', change: 'Loading...', changeType: 'neutral', icon: Brain },
-  ]);
-  const [crops, setCrops] = useState<any[]>([]);
-  const [isPrediciting, setIsPredicting] = useState(false);
+  const [isPredicting, setIsPredicting] = useState(false);
   const [predictionResult, setPredictionResult] = useState<null | {
     crop: string;
     confidence: number;
     yield: string;
     recommendations: string[];
   }>(null);
+  const [recentPredictions, setRecentPredictions] = useState<any[]>([]);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
   useEffect(() => {
-    fetchDashboardData();
+    fetchRecentPredictions();
   }, []);
 
-  const fetchDashboardData = async () => {
+  const fetchRecentPredictions = async () => {
     try {
-      const [statsData, cropsData] = await Promise.all([
-        cropApi.getDashboardStats(),
-        cropApi.getAll()
-      ]);
-
-      setStats([
-        { title: 'Crop Varieties', value: statsData.crops.toString(), change: '+0 this month', changeType: 'positive' as const, icon: Leaf },
-        { title: 'Genetic Markers', value: statsData.traits.toString(), change: 'Active database', changeType: 'neutral' as const, icon: Dna },
-        { title: 'Climate Records', value: statsData.climate.toString(), change: 'Updated daily', changeType: 'positive' as const, icon: CloudSun },
-        { title: 'Predictions Made', value: statsData.predictions.toString(), change: 'Your analyses', changeType: 'neutral' as const, icon: Brain },
-      ]);
-      setCrops(cropsData);
+      const stats = await cropApi.getDashboardStats();
+      // In a real implementation, you'd have a separate endpoint for prediction history
+      // For now, we'll just show the count
+      setRecentPredictions([]);
     } catch (error) {
-      console.error('Failed to fetch dashboard data:', error);
+      console.error('Failed to fetch predictions:', error);
     }
   };
 
@@ -109,16 +66,16 @@ export default function UserDashboard() {
     try {
       const result = await cropApi.predict(data);
       setPredictionResult(result);
-      fetchDashboardData(); // Refresh stats
+      fetchRecentPredictions();
 
       toast({
-        title: 'Prediction Complete',
-        description: `Recommended crop: ${result.crop}`,
+        title: 'Analysis Complete',
+        description: `Recommended: ${result.crop} (${result.confidence}% confidence)`,
       });
     } catch (error: any) {
       toast({
-        title: 'Error',
-        description: error.message || 'Could not connect to the prediction backend.',
+        title: 'Prediction Failed',
+        description: error.message || 'Could not connect to the ML service.',
         variant: 'destructive',
       });
     } finally {
@@ -132,12 +89,12 @@ export default function UserDashboard() {
       if (file.type === 'text/csv' || file.name.endsWith('.csv')) {
         setUploadedFile(file);
         toast({
-          title: 'File Uploaded',
-          description: `${file.name} is ready for analysis.`,
+          title: 'File Ready',
+          description: `${file.name} loaded successfully.`,
         });
       } else {
         toast({
-          title: 'Invalid File',
+          title: 'Invalid Format',
           description: 'Please upload a CSV file.',
           variant: 'destructive',
         });
@@ -158,16 +115,17 @@ export default function UserDashboard() {
         body: formData,
       });
 
-      if (!response.ok) throw new Error('CSV upload failed');
+      if (!response.ok) throw new Error('CSV processing failed');
 
       const result = await response.json();
       toast({
-        title: 'CSV Analysis Complete',
+        title: 'Batch Analysis Complete',
         description: result.message,
       });
+      fetchRecentPredictions();
     } catch (error) {
       toast({
-        title: 'Error',
+        title: 'Processing Error',
         description: 'Could not process CSV file.',
         variant: 'destructive',
       });
@@ -185,133 +143,150 @@ export default function UserDashboard() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-8">
+      <div className="max-w-6xl mx-auto space-y-8">
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
         >
-          <h1 className="text-3xl font-bold text-foreground">Research Dashboard</h1>
-          <p className="text-muted-foreground mt-1">Analyze data and get crop recommendations</p>
+          <h1 className="text-4xl font-bold text-foreground">Prediction Workspace</h1>
+          <p className="text-muted-foreground mt-2">
+            Enter environmental parameters to receive ML-powered crop recommendations
+          </p>
         </motion.div>
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {stats.map((stat, i) => (
-            <StatCard key={stat.title} {...stat} delay={i * 0.1} />
-          ))}
-        </div>
-
-        {/* Main Content */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Prediction Form */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Input Panel */}
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4 }}
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.1 }}
+            className="lg:col-span-2"
           >
-            <Card variant="elevated">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Brain className="w-5 h-5 text-primary" />
-                  Crop Prediction
+            <Card className="border-2 border-border shadow-lg">
+              <CardHeader className="bg-muted/30 border-b">
+                <CardTitle className="flex items-center gap-3 text-2xl">
+                  <Brain className="w-6 h-6 text-primary" />
+                  Data Input
                 </CardTitle>
-                <CardDescription>
-                  Enter environmental data or upload CSV
+                <CardDescription className="text-base">
+                  Choose manual entry or upload a CSV dataset
                 </CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="pt-6">
                 <Tabs defaultValue="manual" className="w-full">
-                  <TabsList className="grid w-full grid-cols-2 mb-4">
-                    <TabsTrigger value="manual">Manual Input</TabsTrigger>
-                    <TabsTrigger value="csv">CSV Upload</TabsTrigger>
+                  <TabsList className="grid w-full grid-cols-2 mb-6">
+                    <TabsTrigger value="manual" className="text-base">Manual Entry</TabsTrigger>
+                    <TabsTrigger value="csv" className="text-base">CSV Upload</TabsTrigger>
                   </TabsList>
 
                   <TabsContent value="manual">
-                    <form onSubmit={handlePrediction} className="space-y-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="soilType">Soil Type</Label>
-                        <Select defaultValue="loamy">
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select soil type" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="loamy">Loamy Soil</SelectItem>
-                            <SelectItem value="clay">Clay Soil</SelectItem>
-                            <SelectItem value="sandy">Sandy Soil</SelectItem>
-                            <SelectItem value="silt">Silt Soil</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-3">
+                    <form onSubmit={handlePrediction} className="space-y-6">
+                      <div className="grid grid-cols-3 gap-4">
                         <div className="space-y-2">
-                          <Label htmlFor="nitrogen">N (kg/ha)</Label>
-                          <Input id="nitrogen" name="nitrogen" type="number" placeholder="0" required />
+                          <Label className="text-sm font-semibold">Nitrogen (N)</Label>
+                          <Input
+                            name="nitrogen"
+                            type="number"
+                            placeholder="kg/ha"
+                            className="h-11"
+                            required
+                          />
                         </div>
                         <div className="space-y-2">
-                          <Label htmlFor="phosphorus">P (kg/ha)</Label>
-                          <Input id="phosphorus" name="phosphorus" type="number" placeholder="0" required />
+                          <Label className="text-sm font-semibold">Phosphorus (P)</Label>
+                          <Input
+                            name="phosphorus"
+                            type="number"
+                            placeholder="kg/ha"
+                            className="h-11"
+                            required
+                          />
                         </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-2">
-                          <Label htmlFor="potassium">K (kg/ha)</Label>
-                          <Input id="potassium" name="potassium" type="number" placeholder="0" required />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="ph">Soil pH</Label>
-                          <Input id="ph" name="ph" type="number" step="0.1" placeholder="0" required />
+                          <Label className="text-sm font-semibold">Potassium (K)</Label>
+                          <Input
+                            name="potassium"
+                            type="number"
+                            placeholder="kg/ha"
+                            className="h-11"
+                            required
+                          />
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
-                          <Label htmlFor="temp">Avg Temp (°C)</Label>
-                          <Input id="temp" name="temp" type="number" step="0.1" placeholder="25" required />
+                          <Label className="text-sm font-semibold flex items-center gap-2">
+                            <Thermometer className="w-4 h-4" />
+                            Temperature (°C)
+                          </Label>
+                          <Input
+                            name="temp"
+                            type="number"
+                            step="0.1"
+                            placeholder="25.0"
+                            className="h-11"
+                            required
+                          />
                         </div>
                         <div className="space-y-2">
-                          <Label htmlFor="humidity">Humidity (%)</Label>
-                          <Input id="humidity" name="humidity" type="number" step="0.1" placeholder="50" required />
+                          <Label className="text-sm font-semibold flex items-center gap-2">
+                            <Droplets className="w-4 h-4" />
+                            Humidity (%)
+                          </Label>
+                          <Input
+                            name="humidity"
+                            type="number"
+                            step="0.1"
+                            placeholder="65.0"
+                            className="h-11"
+                            required
+                          />
                         </div>
                       </div>
 
-                      <div className="space-y-2">
-                        <Label htmlFor="rainfall">Rainfall (mm)</Label>
-                        <Input id="rainfall" name="rainfall" type="number" step="0.1" placeholder="100" required />
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="region">Region</Label>
-                        <Select defaultValue="tropical">
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select region" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="tropical">Tropical</SelectItem>
-                            <SelectItem value="subtropical">Subtropical</SelectItem>
-                            <SelectItem value="temperate">Temperate</SelectItem>
-                            <SelectItem value="arid">Arid</SelectItem>
-                          </SelectContent>
-                        </Select>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label className="text-sm font-semibold">Soil pH</Label>
+                          <Input
+                            name="ph"
+                            type="number"
+                            step="0.1"
+                            placeholder="6.5"
+                            className="h-11"
+                            required
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-semibold">Rainfall (mm)</Label>
+                          <Input
+                            name="rainfall"
+                            type="number"
+                            step="0.1"
+                            placeholder="100.0"
+                            className="h-11"
+                            required
+                          />
+                        </div>
                       </div>
 
                       <Button
                         type="submit"
                         variant="hero"
-                        className="w-full"
-                        disabled={isPrediciting}
+                        size="lg"
+                        className="w-full h-12 text-base"
+                        disabled={isPredicting}
                       >
-                        {isPrediciting ? (
+                        {isPredicting ? (
                           <>
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                            Analyzing...
+                            <Loader2 className="w-5 h-5 animate-spin" />
+                            Running Analysis...
                           </>
                         ) : (
                           <>
-                            <Brain className="w-4 h-4" />
-                            Get Prediction
+                            <Brain className="w-5 h-5" />
+                            Generate Prediction
                           </>
                         )}
                       </Button>
@@ -319,9 +294,9 @@ export default function UserDashboard() {
                   </TabsContent>
 
                   <TabsContent value="csv">
-                    <div className="space-y-4">
+                    <div className="space-y-6">
                       <div
-                        className="border-2 border-dashed border-border rounded-lg p-6 text-center hover:border-primary/50 transition-colors cursor-pointer"
+                        className="border-2 border-dashed border-border rounded-xl p-12 text-center hover:border-primary/50 transition-colors cursor-pointer bg-muted/20"
                         onClick={() => fileInputRef.current?.click()}
                       >
                         <input
@@ -331,118 +306,120 @@ export default function UserDashboard() {
                           onChange={handleFileUpload}
                           className="hidden"
                         />
-                        <Upload className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
-                        <p className="text-sm font-medium text-foreground">
-                          Click to upload CSV file
+                        <Upload className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+                        <p className="text-lg font-medium text-foreground mb-2">
+                          Upload CSV Dataset
                         </p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Supports CSV files with soil, climate, and genetic data
+                        <p className="text-sm text-muted-foreground">
+                          Click to browse or drag and drop your file here
                         </p>
                       </div>
 
                       {uploadedFile && (
-                        <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                        <div className="flex items-center justify-between p-4 bg-primary/5 border border-primary/20 rounded-lg">
                           <div className="flex items-center gap-3">
-                            <FileText className="w-5 h-5 text-primary" />
+                            <FileText className="w-6 h-6 text-primary" />
                             <div>
-                              <p className="text-sm font-medium text-foreground">{uploadedFile.name}</p>
-                              <p className="text-xs text-muted-foreground">
+                              <p className="font-medium text-foreground">{uploadedFile.name}</p>
+                              <p className="text-sm text-muted-foreground">
                                 {(uploadedFile.size / 1024).toFixed(1)} KB
                               </p>
                             </div>
                           </div>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={removeFile}
-                          >
-                            <X className="w-4 h-4" />
+                          <Button variant="ghost" size="sm" onClick={removeFile}>
+                            <X className="w-5 h-5" />
                           </Button>
                         </div>
                       )}
 
                       <Button
                         variant="hero"
-                        className="w-full"
-                        disabled={!uploadedFile || isPrediciting}
+                        size="lg"
+                        className="w-full h-12 text-base"
+                        disabled={!uploadedFile || isPredicting}
                         onClick={handleCSVPrediction}
                       >
-                        {isPrediciting ? (
+                        {isPredicting ? (
                           <>
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                            Processing CSV...
+                            <Loader2 className="w-5 h-5 animate-spin" />
+                            Processing Dataset...
                           </>
                         ) : (
                           <>
-                            <Brain className="w-4 h-4" />
-                            Analyze CSV Data
+                            <Brain className="w-5 h-5" />
+                            Analyze CSV
                           </>
                         )}
                       </Button>
                     </div>
                   </TabsContent>
                 </Tabs>
-
-                {/* Prediction Result */}
-                {predictionResult && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="mt-6 p-4 rounded-lg bg-primary/5 border border-primary/20"
-                  >
-                    <div className="flex items-center justify-between mb-3">
-                      <h4 className="font-semibold text-foreground">Recommended Crop</h4>
-                      <span className="text-sm text-primary font-medium">
-                        {predictionResult.confidence}% confidence
-                      </span>
-                    </div>
-                    <p className="text-2xl font-bold text-primary mb-2">
-                      {predictionResult.crop}
-                    </p>
-                    <p className="text-sm text-muted-foreground mb-4">
-                      Expected Yield: {predictionResult.yield}
-                    </p>
-                    <div className="space-y-2">
-                      {predictionResult.recommendations.map((rec, i) => (
-                        <div key={i} className="flex items-start gap-2 text-sm">
-                          <TrendingUp className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
-                          <span className="text-muted-foreground">{rec}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </motion.div>
-                )}
               </CardContent>
             </Card>
           </motion.div>
 
-          {/* Charts & Data */}
-          <div className="lg:col-span-2 space-y-6">
-            <ChartCard
-              title="Yield Trend Analysis"
-              description="Weekly yield predictions based on current conditions"
-              type="bar"
-              data={yieldTrends}
-            />
+          {/* Results Panel */}
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.2 }}
+          >
+            <Card className="border-2 border-border shadow-lg h-full">
+              <CardHeader className="bg-muted/30 border-b">
+                <CardTitle className="flex items-center gap-3">
+                  <CheckCircle2 className="w-5 h-5 text-primary" />
+                  Prediction Result
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-6">
+                {predictionResult ? (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="space-y-6"
+                  >
+                    <div className="text-center p-6 rounded-xl bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20">
+                      <p className="text-sm text-muted-foreground mb-2">Recommended Crop</p>
+                      <h2 className="text-3xl font-bold text-primary mb-3">
+                        {predictionResult.crop}
+                      </h2>
+                      <div className="flex items-center justify-center gap-4 text-sm">
+                        <div>
+                          <p className="text-muted-foreground">Confidence</p>
+                          <p className="font-bold text-foreground">{predictionResult.confidence}%</p>
+                        </div>
+                        <div className="w-px h-8 bg-border" />
+                        <div>
+                          <p className="text-muted-foreground">Yield</p>
+                          <p className="font-bold text-foreground">{predictionResult.yield}</p>
+                        </div>
+                      </div>
+                    </div>
 
-            <DataTable
-              title="Crop Database"
-              description="Browse available crop varieties"
-              columns={cropColumns}
-              data={crops}
-              actions={
-                <div className="flex items-center gap-2">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input placeholder="Search crops..." className="pl-9 w-48" />
+                    <div className="space-y-3">
+                      <h4 className="font-semibold text-foreground flex items-center gap-2">
+                        <TrendingUp className="w-4 h-4 text-primary" />
+                        Recommendations
+                      </h4>
+                      {predictionResult.recommendations.map((rec, i) => (
+                        <div key={i} className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
+                          <div className="w-1.5 h-1.5 rounded-full bg-primary mt-2 flex-shrink-0" />
+                          <p className="text-sm text-muted-foreground">{rec}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </motion.div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-16 text-center">
+                    <Brain className="w-16 h-16 text-muted-foreground/40 mb-4" />
+                    <p className="text-muted-foreground">
+                      Enter data and run prediction to see results
+                    </p>
                   </div>
-                  <Button variant="outline" size="sm">
-                    View All
-                  </Button>
-                </div>
-              }
-            />
-          </div>
+                )}
+              </CardContent>
+            </Card>
+          </motion.div>
         </div>
       </div>
     </DashboardLayout>

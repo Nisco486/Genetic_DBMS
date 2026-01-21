@@ -18,6 +18,7 @@ import {
   Loader2,
   BarChart3,
   PieChart,
+  Bot,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cropApi } from '@/lib/api';
@@ -37,7 +38,7 @@ const reportTypes = [
   },
   {
     id: 'genetic-impact',
-    title: 'Genetic Trait Impact Analysis',
+    title: 'Genetic Marker Report',
     description: 'Impact of genetic markers on crop yield and disease resistance',
     icon: Dna,
   },
@@ -63,6 +64,7 @@ const yieldTrendData = [
 export default function Reports() {
   const [selectedReport, setSelectedReport] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [aiReportData, setAiReportData] = useState<any>(null);
   const [summaryStats, setSummaryStats] = useState([
     { label: 'Total Predictions', value: '0' },
     { label: 'Crops Analyzed', value: '0' },
@@ -105,15 +107,34 @@ export default function Reports() {
     }
 
     setIsGenerating(true);
+    setAiReportData(null);
 
-    // Simulate report generation
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
-    setIsGenerating(false);
-    toast({
-      title: 'Report Generated',
-      description: `Your ${format.toUpperCase()} report is ready for download.`,
-    });
+    try {
+      if (selectedReport === 'ai-summary') {
+        const report = await cropApi.generateReport();
+        setAiReportData(report);
+        toast({
+          title: 'AI Report Generated',
+          description: 'Project status summary is ready to view.',
+        });
+      } else {
+        // Simulate other report generation
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        toast({
+          title: 'Report Generated',
+          description: `Your ${format.toUpperCase()} report is ready for download.`,
+        });
+      }
+    } catch (error) {
+      console.error(error);
+      toast({
+        title: 'Generation Failed',
+        description: 'Failed to generate report. Please check API connection.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   return (
@@ -324,7 +345,39 @@ export default function Reports() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {selectedReport ? (
+                {aiReportData ? (
+                  <div className="space-y-6">
+                    <div className="p-4 rounded-lg bg-primary/5 border border-primary/20">
+                      <h3 className="text-xl font-bold text-primary mb-2">{aiReportData.title}</h3>
+                      <div className="prose dark:prose-invert max-w-none text-sm whitespace-pre-wrap">
+                        {aiReportData.summary_markdown}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="p-4 rounded-lg bg-muted/50">
+                        <h4 className="font-semibold mb-2 flex items-center gap-2">
+                          <TrendingUp className="w-4 h-4" /> Key Insights
+                        </h4>
+                        <ul className="list-disc list-inside text-sm space-y-1 text-muted-foreground">
+                          {aiReportData.key_insights.map((insight: string, i: number) => (
+                            <li key={i}>{insight}</li>
+                          ))}
+                        </ul>
+                      </div>
+                      <div className="p-4 rounded-lg bg-muted/50">
+                        <h4 className="font-semibold mb-2 flex items-center gap-2">
+                          <Leaf className="w-4 h-4" /> Recommendations
+                        </h4>
+                        <ul className="list-disc list-inside text-sm space-y-1 text-muted-foreground">
+                          {aiReportData.recommendations.map((rec: string, i: number) => (
+                            <li key={i}>{rec}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                ) : selectedReport ? (
                   <div className="space-y-4">
                     <div className="p-4 rounded-lg bg-muted/50">
                       <h4 className="font-medium text-foreground mb-2">Report Contents</h4>

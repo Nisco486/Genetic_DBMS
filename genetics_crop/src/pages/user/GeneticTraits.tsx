@@ -25,20 +25,6 @@ const markerColumns = [
   { key: 'crop', label: 'Crop' },
   { key: 'markerId', label: 'Gene/Marker ID' },
   { key: 'traitAffected', label: 'Trait Affected' },
-  {
-    key: 'effectType',
-    label: 'Effect Type',
-    render: (v: string) => (
-      <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${v === 'Positive'
-        ? 'bg-primary/10 text-primary'
-        : 'bg-destructive/10 text-destructive'
-        }`}>
-        {v === 'Positive' ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-        {v}
-      </span>
-    )
-  },
-  { key: 'confidenceScore', label: 'Confidence' },
 ];
 
 export default function GeneticTraits() {

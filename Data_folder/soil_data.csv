@@ -1,0 +1,6 @@
+region,soil_type,ph_level,nitrogen_content,phosphorus_content
+North Central,Alluvial,6.5,120.5,45.0
+Coastal East,Clayey,5.5,80.0,30.0
+Semi-Arid West,Sandy,8.0,45.0,20.0
+Hilly Northeast,Laterite,4.5,150.0,50.0
+Southern Peninsula,Red,6.8,95.5,40.0

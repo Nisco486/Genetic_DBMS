@@ -16,9 +16,14 @@ import {
   TrendingUp,
   Droplets,
   Thermometer,
+  MapPin,
+  Maximize,
+  Search,
+  Navigation,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cropApi } from '@/lib/api';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function UserDashboard() {
   const [isPredicting, setIsPredicting] = useState(false);
@@ -30,8 +35,16 @@ export default function UserDashboard() {
   }>(null);
   const [recentPredictions, setRecentPredictions] = useState<any[]>([]);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [landArea, setLandArea] = useState('1');
+  const [isFetchingLocation, setIsFetchingLocation] = useState(false);
+  const [locationSearch, setLocationSearch] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [selectedLocation, setSelectedLocation] = useState<{ lat: number, lon: number, name: string } | null>(null);
+  const [locationMode, setLocationMode] = useState<'auto' | 'search'>('auto');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+  const { user } = useAuth();
 
   useEffect(() => {
     fetchRecentPredictions();
@@ -61,6 +74,7 @@ export default function UserDashboard() {
       humidity: parseFloat(formData.get('humidity') as string) || 0,
       ph: parseFloat(formData.get('ph') as string) || 0,
       rainfall: parseFloat(formData.get('rainfall') as string) || 0,
+      user_id: user?.id,
     };
 
     try {
@@ -76,6 +90,139 @@ export default function UserDashboard() {
       toast({
         title: 'Prediction Failed',
         description: error.message || 'Could not connect to the ML service.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsPredicting(false);
+    }
+  };
+
+  const handleLivePrediction = async () => {
+    setIsFetchingLocation(true);
+    setIsPredicting(true);
+
+    if (!navigator.geolocation) {
+      toast({
+        title: 'Geolocation Not Supported',
+        description: 'Your browser doesn\'t support geolocation.',
+        variant: 'destructive',
+      });
+      setIsFetchingLocation(false);
+      setIsPredicting(false);
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        try {
+          const result = await cropApi.predictLive({
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            land_area: parseFloat(landArea),
+            user_id: user?.id
+          });
+
+          setPredictionResult(result);
+          fetchRecentPredictions();
+
+          toast({
+            title: 'Prediction Complete',
+            description: `Based on your live location, recommended crop: ${result.crop}`,
+          });
+        } catch (error: any) {
+          toast({
+            title: 'Prediction Failed',
+            description: error.message || 'An error occurred',
+            variant: 'destructive',
+          });
+        } finally {
+          setIsFetchingLocation(false);
+          setIsPredicting(false);
+        }
+      },
+      (error) => {
+        setIsFetchingLocation(false);
+        setIsPredicting(false);
+        toast({
+          title: 'Location Error',
+          description: error.message,
+          variant: 'destructive',
+        });
+      }
+    );
+  };
+
+  const handleLocationSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!locationSearch.trim()) return;
+
+    setIsSearching(true);
+    try {
+      const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(locationSearch)}&limit=5`);
+      const data = await response.json();
+      setSearchResults(data);
+      if (data.length === 0) {
+        toast({
+          title: 'No results found',
+          description: 'Try a different location name.',
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      toast({
+        title: 'Search Failed',
+        description: 'Could not connect to the geocoding service.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const selectLocation = (location: any) => {
+    setSelectedLocation({
+      lat: parseFloat(location.lat),
+      lon: parseFloat(location.lon),
+      name: location.display_name
+    });
+    setSearchResults([]);
+    setLocationSearch(location.display_name);
+    toast({
+      title: 'Location Selected',
+      description: `Target set to: ${location.display_name}`,
+    });
+  };
+
+  const handleManualLocationPrediction = async () => {
+    if (!selectedLocation) {
+      toast({
+        title: 'No Location Selected',
+        description: 'Please search and select a location first.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsPredicting(true);
+    try {
+      const result = await cropApi.predictLive({
+        latitude: selectedLocation.lat,
+        longitude: selectedLocation.lon,
+        land_area: parseFloat(landArea),
+        user_id: user?.id
+      });
+
+      setPredictionResult(result);
+      fetchRecentPredictions();
+
+      toast({
+        title: 'Prediction Complete',
+        description: `Based on ${selectedLocation.name}, recommended: ${result.crop}`,
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Prediction Failed',
+        description: error.message || 'An error occurred',
         variant: 'destructive',
       });
     } finally {
@@ -108,6 +255,9 @@ export default function UserDashboard() {
     setIsPredicting(true);
     const formData = new FormData();
     formData.append('file', uploadedFile);
+    if (user?.id) {
+      formData.append('user_id', user.id);
+    }
 
     try {
       const response = await fetch('http://localhost:8000/upload-csv', {
@@ -175,8 +325,9 @@ export default function UserDashboard() {
               </CardHeader>
               <CardContent className="pt-6">
                 <Tabs defaultValue="manual" className="w-full">
-                  <TabsList className="grid w-full grid-cols-2 mb-6">
+                  <TabsList className="grid w-full grid-cols-3 mb-6">
                     <TabsTrigger value="manual" className="text-base">Manual Entry</TabsTrigger>
+                    <TabsTrigger value="live" className="text-base">Live Location</TabsTrigger>
                     <TabsTrigger value="csv" className="text-base">CSV Upload</TabsTrigger>
                   </TabsList>
 
@@ -291,6 +442,167 @@ export default function UserDashboard() {
                         )}
                       </Button>
                     </form>
+                  </TabsContent>
+
+                  <TabsContent value="live">
+                    <div className="space-y-6 py-4">
+                      <div className="flex justify-center mb-4">
+                        <div className="inline-flex p-1 bg-muted rounded-lg">
+                          <Button
+                            variant={locationMode === 'auto' ? 'hero' : 'ghost'}
+                            size="sm"
+                            className="h-8 text-xs px-4"
+                            onClick={() => setLocationMode('auto')}
+                          >
+                            <Navigation className="w-3 h-3 mr-2" />
+                            Auto Detect
+                          </Button>
+                          <Button
+                            variant={locationMode === 'search' ? 'hero' : 'ghost'}
+                            size="sm"
+                            className="h-8 text-xs px-4"
+                            onClick={() => setLocationMode('search')}
+                          >
+                            <Search className="w-3 h-3 mr-2" />
+                            Search Location
+                          </Button>
+                        </div>
+                      </div>
+
+                      {locationMode === 'auto' ? (
+                        <div className="space-y-6">
+                          <div className="text-center space-y-4">
+                            <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center mx-auto">
+                              <MapPin className="w-10 h-10 text-primary opacity-80" />
+                            </div>
+                            <div>
+                              <h3 className="font-bold text-xl">Use Your Land's Location</h3>
+                              <p className="text-muted-foreground mt-1 max-w-sm mx-auto text-sm">
+                                We'll detect your current GPS coordinates to fetch weather and soil data.
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="space-y-3 max-w-md mx-auto">
+                            <Label htmlFor="landArea" className="text-base font-semibold">Your Land Size (Acres)</Label>
+                            <div className="relative">
+                              <Maximize className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                              <Input
+                                id="landArea"
+                                type="number"
+                                placeholder="Enter acres"
+                                value={landArea}
+                                onChange={(e) => setLandArea(e.target.value)}
+                                className="pl-12 h-12 text-lg"
+                              />
+                            </div>
+                          </div>
+
+                          <Button
+                            variant="hero"
+                            size="lg"
+                            className="w-full h-14 text-lg shadow-lg"
+                            disabled={isPredicting}
+                            onClick={handleLivePrediction}
+                          >
+                            {isFetchingLocation ? (
+                              <><Loader2 className="w-5 h-5 animate-spin mr-2" />Detecting Location...</>
+                            ) : isPredicting ? (
+                              <><Loader2 className="w-5 h-5 animate-spin mr-2" />Analyzing...</>
+                            ) : (
+                              <><MapPin className="w-5 h-5 mr-2" />Get Live Recommendation</>
+                            )}
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="space-y-6">
+                          <div className="space-y-4">
+                            <form onSubmit={handleLocationSearch} className="relative">
+                              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                              <Input
+                                placeholder="Search city, district or village..."
+                                value={locationSearch}
+                                onChange={(e) => setLocationSearch(e.target.value)}
+                                className="pl-12 h-12 text-lg"
+                              />
+                              <Button
+                                type="submit"
+                                variant="ghost"
+                                size="sm"
+                                className="absolute right-2 top-1/2 -translate-y-1/2 h-8"
+                                disabled={isSearching}
+                              >
+                                {isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Search'}
+                              </Button>
+                            </form>
+
+                            {searchResults.length > 0 && (
+                              <div className="border border-border rounded-lg overflow-hidden bg-background shadow-md">
+                                {searchResults.map((res, i) => (
+                                  <button
+                                    key={i}
+                                    className="w-full text-left p-3 hover:bg-muted transition-colors text-sm border-b last:border-0 border-border"
+                                    onClick={() => selectLocation(res)}
+                                  >
+                                    {res.display_name}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+
+                            {selectedLocation && (
+                              <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg flex items-center gap-3">
+                                <MapPin className="w-5 h-5 text-primary" />
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Target Location</p>
+                                  <p className="text-sm font-medium truncate">{selectedLocation.name}</p>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="space-y-3 max-w-md mx-auto">
+                            <Label htmlFor="landAreaManual" className="text-base font-semibold">Your Land Size (Acres)</Label>
+                            <div className="relative">
+                              <Maximize className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                              <Input
+                                id="landAreaManual"
+                                type="number"
+                                placeholder="Enter acres"
+                                value={landArea}
+                                onChange={(e) => setLandArea(e.target.value)}
+                                className="pl-12 h-12 text-lg"
+                              />
+                            </div>
+                          </div>
+
+                          <Button
+                            variant="hero"
+                            size="lg"
+                            className="w-full h-14 text-lg shadow-lg"
+                            disabled={isPredicting || !selectedLocation}
+                            onClick={handleManualLocationPrediction}
+                          >
+                            {isPredicting ? (
+                              <><Loader2 className="w-5 h-5 animate-spin mr-2" />Analyzing...</>
+                            ) : (
+                              <><Navigation className="w-5 h-5 mr-2" />Predict for Selected Area</>
+                            )}
+                          </Button>
+                        </div>
+                      )}
+
+                      <div className="flex items-center justify-center gap-6 pt-4 border-t border-border/50">
+                        <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                          <CheckCircle2 className="w-2.5 h-2.5 text-green-500" />
+                          Tomorrow.io Weather
+                        </div>
+                        <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                          <CheckCircle2 className="w-2.5 h-2.5 text-green-500" />
+                          SoilGrids Data
+                        </div>
+                      </div>
+                    </div>
                   </TabsContent>
 
                   <TabsContent value="csv">

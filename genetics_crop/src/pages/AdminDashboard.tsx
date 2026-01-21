@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { StatCard } from '@/components/dashboard/StatCard';
@@ -8,15 +9,22 @@ import {
   Database,
   Users,
   Activity,
-  CheckCircle2,
-  RefreshCw,
   Plus,
-  AlertCircle,
   Server,
+  RefreshCw,
 } from 'lucide-react';
 import { cropApi } from '@/lib/api';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 export default function AdminDashboard() {
+  const navigate = useNavigate();
   const [stats, setStats] = useState({
     crops: 0,
     traits: 0,
@@ -24,6 +32,7 @@ export default function AdminDashboard() {
     predictions: 0,
     researchers: 0,
   });
+  const [predictions, setPredictions] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -34,6 +43,9 @@ export default function AdminDashboard() {
     try {
       const data = await cropApi.getDashboardStats();
       setStats(data);
+
+      const preds = await cropApi.getAllPredictions();
+      setPredictions(preds);
     } catch (error) {
       console.error('Failed to fetch stats:', error);
     } finally {
@@ -50,8 +62,8 @@ export default function AdminDashboard() {
   const systemStats = [
     {
       title: 'Total Records',
-      value: (stats.crops + stats.traits + stats.climate).toString(),
-      change: 'Across all databases',
+      value: (stats.crops + stats.traits).toString(),
+      change: 'Crops and Traits',
       changeType: 'neutral' as const,
       icon: Database
     },
@@ -205,28 +217,28 @@ export default function AdminDashboard() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="pt-6 space-y-3">
-                <Button variant="outline" className="w-full justify-start gap-3 h-12">
+                <Button
+                  variant="outline"
+                  className="w-full justify-start gap-3 h-12"
+                  onClick={() => navigate('/admin/data-management')}
+                >
                   <Database className="w-5 h-5" />
                   Manage Records
                 </Button>
-                <Button variant="outline" className="w-full justify-start gap-3 h-12">
+                <Button
+                  variant="outline"
+                  className="w-full justify-start gap-3 h-12"
+                  onClick={() => navigate('/admin/users')}
+                >
                   <Users className="w-5 h-5" />
                   User Accounts
-                </Button>
-                <Button variant="outline" className="w-full justify-start gap-3 h-12">
-                  <RefreshCw className="w-5 h-5" />
-                  Backup Database
-                </Button>
-                <Button variant="outline" className="w-full justify-start gap-3 h-12">
-                  <Server className="w-5 h-5" />
-                  System Logs
                 </Button>
               </CardContent>
             </Card>
           </motion.div>
         </div>
 
-        {/* Recent Activity */}
+        {/* User Predictions Log */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -236,52 +248,60 @@ export default function AdminDashboard() {
             <CardHeader className="bg-muted/30 border-b">
               <CardTitle className="flex items-center gap-3">
                 <Activity className="w-5 h-5 text-primary" />
-                Recent System Activity
+                User Prediction Log
               </CardTitle>
-              <CardDescription>Latest operations and updates</CardDescription>
+              <CardDescription>Real-time feed of user activities and ML predictions</CardDescription>
             </CardHeader>
-            <CardContent className="pt-6">
-              <div className="space-y-4">
-                {recentActivity.map((activity, i) => (
-                  <div key={i} className="flex items-start gap-4 p-4 rounded-lg bg-muted/30 border border-border">
-                    <div className={`w-2 h-2 rounded-full mt-2 ${activity.type === 'success' ? 'bg-green-500' : 'bg-blue-500'
-                      }`} />
-                    <div className="flex-1">
-                      <p className="font-medium text-foreground">{activity.action}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {activity.user} • {activity.time}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
+            <CardContent className="pt-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>User</TableHead>
+                    <TableHead>Recommended Crop</TableHead>
+                    <TableHead>Confidence</TableHead>
+                    <TableHead>Date & Time</TableHead>
+                    <TableHead>Details</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {predictions.length > 0 ? (
+                    predictions.map((pred: any) => (
+                      <TableRow key={pred.id}>
+                        <TableCell className="font-medium">
+                          {pred.user && typeof pred.user === 'object' ? (
+                            <div>
+                              <div className="font-bold text-primary">ID: {pred.user.id}</div>
+                              <div className="text-xs text-muted-foreground">{pred.user.name || pred.user.username}</div>
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground italic">Guest</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                            {pred.crop}
+                          </div>
+                        </TableCell>
+                        <TableCell>{pred.confidence}%</TableCell>
+                        <TableCell className="text-muted-foreground text-sm">{pred.date}</TableCell>
+                        <TableCell className="text-muted-foreground text-sm">{pred.details}</TableCell>
+                      </TableRow>
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                        No predictions recorded yet.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
             </CardContent>
           </Card>
         </motion.div>
 
-        {/* System Status Alert */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.5 }}
-        >
-          <Card className="border-l-4 border-l-green-500 bg-green-50 dark:bg-green-950/20">
-            <CardContent className="p-6">
-              <div className="flex items-start gap-4">
-                <div className="w-10 h-10 rounded-lg bg-green-500/10 flex items-center justify-center flex-shrink-0">
-                  <CheckCircle2 className="w-6 h-6 text-green-600 dark:text-green-400" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="font-semibold text-foreground mb-1">All Systems Operational</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Database connections stable. ML model responding normally.
-                    Last system check: {new Date().toLocaleTimeString()}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
+
       </div>
     </DashboardLayout>
   );

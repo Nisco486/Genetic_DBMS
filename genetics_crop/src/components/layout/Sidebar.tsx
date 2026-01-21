@@ -7,8 +7,6 @@ import {
   Database,
   Upload,
   Users,
-  Settings,
-  LineChart,
   Leaf,
   FlaskConical,
   CloudSun,
@@ -27,8 +25,6 @@ interface SidebarProps {
 const adminLinks = [
   { icon: LayoutDashboard, label: 'Admin Terminal', href: '/admin/dashboard' },
   { icon: Database, label: 'Records Management', href: '/admin/data-management' },
-  { icon: LineChart, label: 'System Health', href: '/admin/monitoring' },
-  { icon: Settings, label: 'Settings', href: '/admin/settings' },
 ];
 
 const userLinks = [

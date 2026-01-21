@@ -20,6 +20,8 @@ import {
   CheckCircle2,
   Bookmark,
   History,
+  MapPin,
+  Maximize,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 // import { predict, predictBatch, PredictionInput } from '@/lib/ml/prediction';
@@ -87,6 +89,8 @@ export default function Predictions() {
     rainfall: '',
     region: 'tropical',
   });
+  const [landArea, setLandArea] = useState('1');
+  const [isFetchingLocation, setIsFetchingLocation] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
@@ -152,6 +156,69 @@ export default function Predictions() {
     } finally {
       setIsPredicting(false);
     }
+  };
+
+  const handleLivePrediction = async () => {
+    setIsFetchingLocation(true);
+    setIsPredicting(true);
+
+    if (!navigator.geolocation) {
+      toast({
+        title: 'Geolocation Not Supported',
+        description: 'Your browser doesn\'t support geolocation.',
+        variant: 'destructive',
+      });
+      setIsFetchingLocation(false);
+      setIsPredicting(false);
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        try {
+          const user = JSON.parse(localStorage.getItem('user') || '{}');
+          const result = await cropApi.predictLive({
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            land_area: parseFloat(landArea),
+            user_id: user.id
+          });
+
+          setPredictionResult({
+            crops: [{
+              name: result.crop,
+              yield: result.yield || 'High',
+              suitability: Math.round(result.confidence),
+              risk: result.confidence > 80 ? 'Low' : result.confidence > 60 ? 'Medium' : 'High',
+              confidence: Math.round(result.confidence),
+            }],
+          });
+
+          toast({
+            title: 'Prediction Complete',
+            description: `Based on your live location, recommended crop: ${result.crop}`,
+          });
+        } catch (error) {
+          toast({
+            title: 'Prediction Failed',
+            description: error instanceof Error ? error.message : 'An error occurred',
+            variant: 'destructive',
+          });
+        } finally {
+          setIsFetchingLocation(false);
+          setIsPredicting(false);
+        }
+      },
+      (error) => {
+        setIsFetchingLocation(false);
+        setIsPredicting(false);
+        toast({
+          title: 'Location Error',
+          description: error.message,
+          variant: 'destructive',
+        });
+      }
+    );
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -308,8 +375,9 @@ export default function Predictions() {
               </CardHeader>
               <CardContent>
                 <Tabs defaultValue="manual" className="w-full">
-                  <TabsList className="grid w-full grid-cols-2 mb-4">
-                    <TabsTrigger value="manual">Manual Input</TabsTrigger>
+                  <TabsList className="grid w-full grid-cols-3 mb-4">
+                    <TabsTrigger value="manual">Manual</TabsTrigger>
+                    <TabsTrigger value="live">Live Location</TabsTrigger>
                     <TabsTrigger value="csv">CSV Upload</TabsTrigger>
                   </TabsList>
 
@@ -438,6 +506,61 @@ export default function Predictions() {
                     </form>
                   </TabsContent>
 
+                  <TabsContent value="live">
+                    <div className="space-y-6 py-4">
+                      <div className="text-center space-y-2">
+                        <MapPin className="w-12 h-12 text-primary mx-auto mb-2 opacity-80" />
+                        <h3 className="font-semibold text-lg">Use Your Land's Location</h3>
+                        <p className="text-sm text-muted-foreground">
+                          We'll fetch live soil and climate data based on your current GPS coordinates.
+                        </p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="landArea">Your Land Size (Acres)</Label>
+                        <div className="relative">
+                          <Maximize className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                          <Input
+                            id="landArea"
+                            type="number"
+                            placeholder="Enter acres"
+                            value={landArea}
+                            onChange={(e) => setLandArea(e.target.value)}
+                            className="pl-10"
+                          />
+                        </div>
+                      </div>
+
+                      <Button
+                        variant="hero"
+                        className="w-full"
+                        disabled={isPrediciting}
+                        onClick={handleLivePrediction}
+                      >
+                        {isFetchingLocation ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            Getting Location...
+                          </>
+                        ) : isPrediciting ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            Fetching Live Data...
+                          </>
+                        ) : (
+                          <>
+                            <MapPin className="w-4 h-4" />
+                            Fetch Data & Predict
+                          </>
+                        )}
+                      </Button>
+
+                      <p className="text-[10px] text-center text-muted-foreground italic">
+                        * Soil data from ISRIC SoilGrids, Weather from Tomorrow.io
+                      </p>
+                    </div>
+                  </TabsContent>
+
                   <TabsContent value="csv">
                     <div className="space-y-4">
                       <div
@@ -539,7 +662,7 @@ export default function Predictions() {
                               {crop.name}
                             </h4>
                             <p className="text-sm text-muted-foreground mt-1">
-                              Expected Yield: {crop.yield}
+                              Estimated Yield: <span className="text-foreground font-semibold">{crop.yield}</span>
                             </p>
                           </div>
                           <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${crop.risk === 'Low' ? 'bg-primary/10 text-primary' :

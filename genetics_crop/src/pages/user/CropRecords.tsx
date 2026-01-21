@@ -42,11 +42,7 @@ const initialCropRecords = [
 const cropColumns = [
   { key: 'name', label: 'Crop Name' },
   { key: 'variety', label: 'Variety' },
-  { key: 'growthDuration', label: 'Growth Duration' },
-  { key: 'avgYield', label: 'Avg Yield' },
   { key: 'region', label: 'Region' },
-  { key: 'diseaseResistance', label: 'Disease Resistance' },
-  { key: 'status', label: 'Status', render: (v: string) => <StatusBadge status={v} /> },
 ];
 
 export default function CropRecords() {
@@ -78,11 +74,7 @@ export default function CropRecords() {
           id: c.crop_id,
           name: c.crop_name,
           variety: c.variety,
-          growthDuration: 'N/A',
-          avgYield: 'N/A',
           region: c.origin_region,
-          diseaseResistance: 'Moderate',
-          status: 'Active'
         })));
       }
     } catch (error) {

@@ -113,8 +113,7 @@ export default function Login() {
       password,
       role: selectedRole,
       username,
-      full_name: fullName,
-      phone_number: ''
+      full_name: fullName
     });
 
     if (result.success) {

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { DataTable, StatusBadge } from '@/components/dashboard/DataTable';
@@ -26,13 +26,9 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
-const users = [
-  { id: 1, name: 'Dr. Sarah Chen', email: 'sarah.chen@uni.edu', role: 'Researcher', status: 'Active', lastActive: '2024-01-15 14:32', predictions: 0 },
-  { id: 2, name: 'James Wilson', email: 'j.wilson@agri.org', role: 'Researcher', status: 'Active', lastActive: '2024-01-15 12:18', predictions: 0 },
-  { id: 3, name: 'Maria Lopez', email: 'm.lopez@farm.co', role: 'Researcher', status: 'Inactive', lastActive: '2024-01-10 09:45', predictions: 0 },
-  { id: 4, name: 'Admin User', email: 'admin@cropgen.ai', role: 'Admin', status: 'Active', lastActive: '2024-01-15 16:00', predictions: 0 },
-  { id: 5, name: 'John Doe', email: 'john.doe@research.edu', role: 'Researcher', status: 'Active', lastActive: '2024-01-14 11:20', predictions: 0 },
-];
+import { cropApi } from '@/lib/api';
+
+// Static users removed in favor of API data
 
 const activityLogs = [
   { id: 1, user: 'Dr. Sarah Chen', action: 'Ran prediction', details: 'Wheat yield prediction for Punjab region', time: '0 mins ago' },
@@ -43,14 +39,41 @@ const activityLogs = [
 
 export default function UserManagement() {
   const { toast } = useToast();
+  const [users, setUsers] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
 
+  useEffect(() => {
+    fetchUsers();
+  }, [roleFilter]);
+
+  const fetchUsers = async () => {
+    setIsLoading(true);
+    try {
+      // Pass 'all' as undefined/empty to backend if selected
+      const role = roleFilter === 'all' ? undefined : roleFilter;
+      const data = await cropApi.getUsers(role);
+      setUsers(data);
+    } catch (error) {
+      console.error('Failed to fetch users:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load user list',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const filteredUsers = users.filter(user => {
-    const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         user.email.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesRole = roleFilter === 'all' || user.role === roleFilter;
-    return matchesSearch && matchesRole;
+    const name = user.name || '';
+    const email = user.email || '';
+    const matchesSearch = name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      email.toLowerCase().includes(searchTerm.toLowerCase());
+    // Role filtering is now handled by backend (mostly), but search is client side
+    return matchesSearch;
   });
 
   const handleToggleStatus = (userId: number, currentStatus: string) => {
@@ -69,49 +92,55 @@ export default function UserManagement() {
   };
 
   const columns = [
-    { key: 'name', label: 'User', render: (v: string, row: any) => (
-      <div>
-        <p className="font-medium text-foreground">{v}</p>
-        <p className="text-sm text-muted-foreground">{row.email}</p>
-      </div>
-    )},
-    { key: 'role', label: 'Role', render: (v: string) => (
-      <Badge variant={v === 'Admin' ? 'default' : 'secondary'} className="gap-1">
-        {v === 'Admin' ? <ShieldCheck className="w-3 h-3" /> : <Shield className="w-3 h-3" />}
-        {v}
-      </Badge>
-    )},
+    {
+      key: 'name', label: 'User', render: (v: string, row: any) => (
+        <div>
+          <p className="font-medium text-foreground">{v}</p>
+          <p className="text-sm text-muted-foreground">{row.email}</p>
+        </div>
+      )
+    },
+    {
+      key: 'role', label: 'Role', render: (v: string) => (
+        <Badge variant={v === 'Admin' ? 'default' : 'secondary'} className="gap-1">
+          {v === 'Admin' ? <ShieldCheck className="w-3 h-3" /> : <Shield className="w-3 h-3" />}
+          {v}
+        </Badge>
+      )
+    },
     { key: 'status', label: 'Status', render: (v: string) => <StatusBadge status={v} /> },
     { key: 'lastActive', label: 'Last Active' },
     { key: 'predictions', label: 'Predictions', render: (v: number) => v.toLocaleString() },
-    { key: 'actions', label: '', render: (_: any, row: any) => (
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon" className="h-8 w-8">
-            <MoreVertical className="w-4 h-4" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={() => handleChangeRole(row.id, row.role === 'Admin' ? 'Researcher' : 'Admin')}>
-            <Shield className="w-4 h-4 mr-2" />
-            Change Role
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => handleToggleStatus(row.id, row.status)}>
-            {row.status === 'Active' ? (
-              <>
-                <Ban className="w-4 h-4 mr-2" />
-                Deactivate
-              </>
-            ) : (
-              <>
-                <CheckCircle className="w-4 h-4 mr-2" />
-                Activate
-              </>
-            )}
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    )},
+    {
+      key: 'actions', label: '', render: (_: any, row: any) => (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="h-8 w-8">
+              <MoreVertical className="w-4 h-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => handleChangeRole(row.id, row.role === 'Admin' ? 'Researcher' : 'Admin')}>
+              <Shield className="w-4 h-4 mr-2" />
+              Change Role
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleToggleStatus(row.id, row.status)}>
+              {row.status === 'Active' ? (
+                <>
+                  <Ban className="w-4 h-4 mr-2" />
+                  Deactivate
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="w-4 h-4 mr-2" />
+                  Activate
+                </>
+              )}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )
+    },
   ];
 
   const activeUsers = users.filter(u => u.status === 'Active').length;

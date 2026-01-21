@@ -18,8 +18,11 @@ import {
   Dna,
   CloudSun,
   FlaskConical,
+  Bot,
+  TrendingUp,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { cropApi } from '@/lib/api';
 
 const uploadCategories = [
   { id: 'crops', label: 'Crop Data', icon: Leaf, description: 'Crop varieties, yields, growth duration' },
@@ -48,6 +51,7 @@ export default function BulkUpload() {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [showPreview, setShowPreview] = useState(false);
+  const [aiReport, setAiReport] = useState<any>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -59,27 +63,45 @@ export default function BulkUpload() {
 
   const handleUpload = async () => {
     if (!uploadedFile || !selectedCategory) return;
-    
+
     setUploading(true);
     setUploadProgress(0);
-    
-    // Simulate upload progress
-    const interval = setInterval(() => {
-      setUploadProgress(prev => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          setUploading(false);
-          toast({
-            title: "Upload Complete",
-            description: `Successfully uploaded ${uploadedFile.name}`,
-          });
-          setUploadedFile(null);
-          setShowPreview(false);
-          return 100;
-        }
-        return prev + 10;
+    setAiReport(null);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', uploadedFile);
+      formData.append('category', selectedCategory);
+
+      const userStr = localStorage.getItem('user');
+      if (userStr) {
+        const user = JSON.parse(userStr);
+        formData.append('user_id', user.id.toString());
+      }
+
+      const response = await cropApi.uploadCsv(formData);
+
+      setUploadProgress(100);
+      toast({
+        title: "Upload Complete",
+        description: response.message,
       });
-    }, 200);
+
+      if (response.ai_report) {
+        setAiReport(response.ai_report);
+      }
+
+      setUploadedFile(null);
+      setShowPreview(false);
+    } catch (error: any) {
+      toast({
+        title: "Upload Failed",
+        description: error.message || "Failed to process the dataset",
+        variant: "destructive"
+      });
+    } finally {
+      setUploading(false);
+    }
   };
 
   const getStatusIcon = (status: string) => {
@@ -122,18 +144,16 @@ export default function BulkUpload() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.1 }}
             >
-              <Card 
+              <Card
                 variant="elevated"
-                className={`cursor-pointer transition-all hover:shadow-lg ${
-                  selectedCategory === category.id ? 'ring-2 ring-primary' : ''
-                }`}
+                className={`cursor-pointer transition-all hover:shadow-lg ${selectedCategory === category.id ? 'ring-2 ring-primary' : ''
+                  }`}
                 onClick={() => setSelectedCategory(category.id)}
               >
                 <CardContent className="p-4">
                   <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                      selectedCategory === category.id ? 'bg-primary text-primary-foreground' : 'bg-muted'
-                    }`}>
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${selectedCategory === category.id ? 'bg-primary text-primary-foreground' : 'bg-muted'
+                      }`}>
                       <category.icon className="w-5 h-5" />
                     </div>
                     <div>
@@ -160,7 +180,7 @@ export default function BulkUpload() {
                 Upload CSV File
               </CardTitle>
               <CardDescription>
-                {selectedCategory 
+                {selectedCategory
                   ? `Upload ${uploadCategories.find(c => c.id === selectedCategory)?.label} dataset`
                   : 'Select a category above to start uploading'
                 }
@@ -177,9 +197,9 @@ export default function BulkUpload() {
                       </p>
                       <p className="text-xs text-muted-foreground">CSV files only (MAX. 50MB)</p>
                     </div>
-                    <input 
-                      type="file" 
-                      className="hidden" 
+                    <input
+                      type="file"
+                      className="hidden"
                       accept=".csv"
                       onChange={handleFileChange}
                     />
@@ -257,6 +277,65 @@ export default function BulkUpload() {
                       <span className="text-muted-foreground">{error.message}</span>
                     </div>
                   ))}
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
+
+        {/* AI Report After Upload */}
+        {aiReport && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="space-y-6"
+          >
+            <Card variant="elevated" className="border-primary/50 relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-4 opacity-10">
+                <Bot className="w-24 h-24" />
+              </div>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-primary">
+                  <Bot className="w-6 h-6" />
+                  Real-time AI Project Insight
+                </CardTitle>
+                <CardDescription>
+                  Automated summary generated based on recent data ingestion
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="p-6 rounded-xl bg-primary/5 border border-primary/10">
+                  <h3 className="text-xl font-bold text-foreground mb-4">{aiReport.title}</h3>
+                  <div className="prose dark:prose-invert max-w-none text-muted-foreground whitespace-pre-wrap leading-relaxed">
+                    {aiReport.summary_markdown}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="p-4 rounded-xl bg-muted/30 border border-border/50">
+                    <h4 className="font-semibold mb-3 flex items-center gap-2 text-foreground">
+                      <TrendingUp className="w-4 h-4 text-primary" /> Key Insights
+                    </h4>
+                    <ul className="space-y-2">
+                      {aiReport.key_insights.map((insight: string, i: number) => (
+                        <li key={i} className="flex gap-2 text-sm text-muted-foreground">
+                          <span className="text-primary">•</span> {insight}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div className="p-4 rounded-xl bg-muted/30 border border-border/50">
+                    <h4 className="font-semibold mb-3 flex items-center gap-2 text-foreground">
+                      <Leaf className="w-4 h-4 text-secondary" /> Recommendations
+                    </h4>
+                    <ul className="space-y-2">
+                      {aiReport.recommendations.map((rec: string, i: number) => (
+                        <li key={i} className="flex gap-2 text-sm text-muted-foreground">
+                          <span className="text-secondary">•</span> {rec}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                 </div>
               </CardContent>
             </Card>

@@ -18,7 +18,6 @@ import DataManagement from "./pages/admin/DataManagement";
 import BulkUpload from "./pages/admin/BulkUpload";
 import UserManagement from "./pages/admin/UserManagement";
 import MLModel from "./pages/admin/MLModel";
-import Settings from "./pages/admin/Settings";
 import DataExplorer from "./pages/user/DataExplorer";
 import NotFound from "./pages/NotFound";
 
@@ -53,7 +52,6 @@ function AppRoutes() {
       <Route path="/admin/bulk-upload" element={<ProtectedRoute requiredRole="admin"><BulkUpload /></ProtectedRoute>} />
       <Route path="/admin/users" element={<ProtectedRoute requiredRole="admin"><UserManagement /></ProtectedRoute>} />
       <Route path="/admin/ml-model" element={<ProtectedRoute requiredRole="admin"><MLModel /></ProtectedRoute>} />
-      <Route path="/admin/settings" element={<ProtectedRoute requiredRole="admin"><Settings /></ProtectedRoute>} />
       <Route path="/dashboard" element={<ProtectedRoute requiredRole="user"><UserDashboard /></ProtectedRoute>} />
       <Route path="/dashboard/crops" element={<ProtectedRoute requiredRole="user"><DataExplorer /></ProtectedRoute>} />
       <Route path="/dashboard/traits" element={<ProtectedRoute requiredRole="user"><GeneticTraits /></ProtectedRoute>} />

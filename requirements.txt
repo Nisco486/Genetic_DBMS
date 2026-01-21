@@ -5,6 +5,7 @@ psycopg2-binary
 pymongo
 pandas
 joblib
+httpx
 numpy
 scikit-learn
 lightgbm
@@ -12,3 +13,8 @@ python-dotenv
 python-multipart
 passlib
 bcrypt
+
+pydantic-ai
+openai
+logfire
+nest_asyncio

@@ -6,6 +6,7 @@ from sqlalchemy import text
 
 def migrate():
     with engine.connect() as conn:
+        trans = conn.begin()
         try:
             # Add full_name column
             conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS full_name VARCHAR(100)"))
@@ -29,12 +30,12 @@ def migrate():
             """))
             print("Updated existing users with default values")
             
-            conn.commit()
+            trans.commit()
             print("Migration completed successfully!")
             
         except Exception as e:
             print(f"Migration error: {e}")
-            conn.rollback()
+            trans.rollback()
 
 if __name__ == "__main__":
     migrate()

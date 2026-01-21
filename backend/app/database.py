@@ -52,7 +52,6 @@ class User(Base):
     username = Column(String(50), unique=True, index=True)
     full_name = Column(String(100))
     email = Column(String(100), unique=True, index=True)
-    phone_number = Column(String(20))
     password_hash = Column(String(255))
     role = Column(String(20)) # Admin, Researcher, User
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -144,6 +143,9 @@ class PredictionRecord(Base):
     rainfall = Column(Float)
     recommended_crop = Column(String(50))
     confidence = Column(Float)
+    user_id = Column(Integer, ForeignKey("users.user_id"), nullable=True)
+    user = relationship("User")
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 def init_db():
     Base.metadata.create_all(bind=engine)

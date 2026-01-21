@@ -2,7 +2,7 @@ from backend.app.database import SessionLocal, User, CropInfo, GeneticTrait, Cli
 from datetime import datetime
 from passlib.context import CryptContext
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 
 def seed_data():
     db = SessionLocal()
@@ -19,9 +19,9 @@ def seed_data():
 
         # 1. Users with hashed passwords
         users = [
-            User(username="AD-101", full_name="Nishan Admin", email="nishan@rvce.edu.in", phone_number="", password_hash=pwd_context.hash("admin123"), role="admin"),
-            User(username="AD-102", full_name="Manya Admin", email="manya@rvce.edu.in", phone_number="", password_hash=pwd_context.hash("admin123"), role="admin"),
-            User(username="researcher01", full_name="Research User", email="res01@rvce.edu.in", phone_number="", password_hash=pwd_context.hash("user123"), role="user"),
+            User(username="AD-101", full_name="Nishan Admin", email="nishan@rvce.edu.in", password_hash=pwd_context.hash("admin123"), role="admin"),
+            User(username="AD-102", full_name="Manya Admin", email="manya@rvce.edu.in", password_hash=pwd_context.hash("admin123"), role="admin"),
+            User(username="researcher01", full_name="Research User", email="res01@rvce.edu.in", password_hash=pwd_context.hash("user123"), role="user"),
         ]
         db.add_all(users)
         db.commit()

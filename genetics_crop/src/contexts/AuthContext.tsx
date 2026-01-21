@@ -27,6 +27,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isLoading: true,
   });
 
+  const API_URL = 'http://localhost:8000';
+
   useEffect(() => {
     const sessionUser = localStorage.getItem('user');
     if (sessionUser) {
@@ -48,23 +50,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = useCallback(async (email: string, password: string, role: UserRole): Promise<AuthResult> => {
     setAuthState(prev => ({ ...prev, isLoading: true }));
 
-    await new Promise(resolve => setTimeout(resolve, 400));
+    try {
+      const response = await fetch(`${API_URL}/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password, role }),
+      });
 
-    // Simple demo authentication
-    const demoAccounts = {
-      'nishan@rvce.edu.in': { password: 'admin123', role: 'admin', name: 'Nishan Admin', username: 'AD-101' },
-      'manya@rvce.edu.in': { password: 'admin123', role: 'admin', name: 'Manya Admin', username: 'AD-102' },
-      'res01@rvce.edu.in': { password: 'user123', role: 'user', name: 'Research User', username: 'researcher01' },
-    };
+      const data = await response.json();
 
-    const account = demoAccounts[email as keyof typeof demoAccounts];
+      if (!response.ok) {
+        throw new Error(data.detail || 'Login failed');
+      }
 
-    if (account && account.password === password && account.role === role) {
       const user: User = {
-        id: Date.now().toString(),
-        email,
-        name: account.name,
-        role,
+        id: data.user.id.toString(),
+        email: data.user.email,
+        name: data.user.name,
+        role: data.user.role,
       };
 
       setAuthState({
@@ -74,10 +79,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
       localStorage.setItem('user', JSON.stringify(user));
       return { success: true };
+    } catch (error) {
+      setAuthState(prev => ({ ...prev, isLoading: false }));
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Login failed'
+      };
     }
-
-    setAuthState(prev => ({ ...prev, isLoading: false }));
-    return { success: false, message: 'Invalid credentials.' };
   }, []);
 
   const signUp = useCallback(async (params: {
@@ -89,38 +97,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }): Promise<AuthResult> => {
     setAuthState(prev => ({ ...prev, isLoading: true }));
 
-    await new Promise(resolve => setTimeout(resolve, 400));
+    try {
+      const response = await fetch(`${API_URL}/signup`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: params.email,
+          password: params.password,
+          role: params.role,
+          username: params.username,
+          full_name: params.full_name
+        }),
+      });
 
-    // Validate username format for admin
-    if (params.role === 'admin' && !/^AD-\d{3}$/.test(params.username)) {
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.detail || 'Signup failed');
+      }
+
       setAuthState(prev => ({ ...prev, isLoading: false }));
-      return { success: false, message: 'Admin username must be in format AD-### (e.g., AD-101)' };
-    }
-
-    if (params.role !== 'admin' && params.username.length < 6) {
+      return { success: true };
+    } catch (error) {
       setAuthState(prev => ({ ...prev, isLoading: false }));
-      return { success: false, message: 'Username must be at least 6 characters' };
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Signup failed'
+      };
     }
-
-    if (params.password.length < 8) {
-      setAuthState(prev => ({ ...prev, isLoading: false }));
-      return { success: false, message: 'Password must be at least 8 characters' };
-    }
-
-    const user: User = {
-      id: Date.now().toString(),
-      email: params.email,
-      name: params.full_name,
-      role: params.role,
-    };
-
-    setAuthState({
-      user,
-      isAuthenticated: true,
-      isLoading: false,
-    });
-    localStorage.setItem('user', JSON.stringify(user));
-    return { success: true };
   }, []);
 
   const logout = useCallback(() => {

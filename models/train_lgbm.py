@@ -26,8 +26,15 @@ def train():
         'objective': 'multiclass',
         'num_class': len(y.unique()),
         'metric': 'multi_logloss',
-        'learning_rate': 0.05,
-        'num_leaves': 31,
+        'learning_rate': 0.03,        # Slightly lower learning rate
+        'num_leaves': 15,             # Reduced from 31 to prevent overfitting on small data
+        'max_depth': 6,               # Limit depth
+        'min_child_samples': 15,      # Allow learning from smaller groups but not too small
+        'feature_fraction': 0.8,      # Randomly select 80% of features per tree
+        'bagging_fraction': 0.8,      # Randomly select 80% of data
+        'bagging_freq': 5,            # Perform bagging every 5 iterations
+        'lambda_l1': 0.1,             # L1 regularization
+        'lambda_l2': 0.1,             # L2 regularization
         'verbose': -1,
         'seed': 42
     }
@@ -37,8 +44,8 @@ def train():
         params, 
         train_data, 
         valid_sets=[val_data], 
-        num_boost_round=1000,
-        callbacks=[lgb.early_stopping(50)]
+        num_boost_round=2000,         # Increased rounds since LR is lower
+        callbacks=[lgb.early_stopping(100)] # Increased patience
     )
     # wrap sklearn-style interface for predict_proba
     classes = sorted(list(y.unique()))

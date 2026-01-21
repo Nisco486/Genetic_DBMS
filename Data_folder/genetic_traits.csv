@@ -1,0 +1,6 @@
+crop_name,gene_code,category,trait_name,description
+Rice,SUB1A,Tolerance,Submergence Tolerance,Gene that allows rice to survive underwater.
+Wheat,LR34,Resistance,Leaf Rust Resistance,Provides durable resistance to multiple fungal diseases.
+Maize,CRT,Nutritional,Pro-vitamin A,Increases beta-carotene levels in grain.
+Cotton,CRY1AC,Pest Control,Bollworm Resistance,Bt gene providing resistance to cotton bollworm.
+Rice,DRO1,Tolerance,Drought Tolerance,Deeper rooting gene for drought resistance.

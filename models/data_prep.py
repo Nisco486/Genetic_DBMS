@@ -5,12 +5,21 @@ from sklearn.preprocessing import LabelEncoder
 import joblib
 
 def prepare_data():
-    raw_path = 'data/raw/Crop_recommendation.csv'
+    raw_path = 'data/raw/Crop_Mixed.csv'
     processed_dir = 'data/processed'
     os.makedirs(processed_dir, exist_ok=True)
     
     # Load data
     df = pd.read_csv(raw_path)
+    
+    # Filter rare classes (need at least 3 for split)
+    v_counts = df['label'].value_counts()
+    print("Value counts before filter:")
+    print(v_counts.tail(10))
+    keep_labels = v_counts[v_counts >= 10].index
+    df = df[df['label'].isin(keep_labels)]
+    print(f"Rows after filter: {len(df)}")
+
     
     # Rename columns to match train_lgbm.py expectations if needed, 
     # but I will update train_lgbm.py to match the CSV N,P,K

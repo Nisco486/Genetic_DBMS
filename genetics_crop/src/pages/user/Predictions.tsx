@@ -139,7 +139,7 @@ export default function Predictions() {
       };
 
       const result = await cropApi.predict(input);
-      setPredictionResult({
+      const newResult = {
         crops: [{
           name: result.crop,
           yield: result.yield || 'High',
@@ -147,7 +147,11 @@ export default function Predictions() {
           risk: result.confidence > 80 ? 'Low' : result.confidence > 60 ? 'Medium' : 'High',
           confidence: Math.round(result.confidence),
         }],
-      });
+      };
+      setPredictionResult(newResult);
+      // Save for AI Chatbot context
+      localStorage.setItem('last_prediction', JSON.stringify(newResult));
+      window.dispatchEvent(new CustomEvent('context-updated'));
 
       toast({
         title: 'Prediction Complete',
@@ -192,7 +196,7 @@ export default function Predictions() {
             user_id: user.id
           });
 
-          setPredictionResult({
+          const newResult = {
             crops: [{
               name: result.crop,
               yield: result.yield || 'High',
@@ -200,7 +204,11 @@ export default function Predictions() {
               risk: result.confidence > 80 ? 'Low' : result.confidence > 60 ? 'Medium' : 'High',
               confidence: Math.round(result.confidence),
             }],
-          });
+          };
+          setPredictionResult(newResult);
+          // Save for AI Chatbot context
+          localStorage.setItem('last_prediction', JSON.stringify(newResult));
+          window.dispatchEvent(new CustomEvent('context-updated'));
 
           toast({
             title: 'Prediction Complete',

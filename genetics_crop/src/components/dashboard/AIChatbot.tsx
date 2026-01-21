@@ -1,10 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MessageSquare, X, Send, Bot, User, Loader2, Languages } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { cropApi } from '@/lib/api';
 
 interface Message {
     role: 'user' | 'assistant';
@@ -13,6 +13,7 @@ interface Message {
 
 export function AIChatbot() {
     const [isOpen, setIsOpen] = useState(false);
+    const location = useLocation();
     const [messages, setMessages] = useState<Message[]>([
         { role: 'assistant', content: 'Namaste! I am Kisan Sahayak. How can I help you today? (Ask me in English, Hindi, or any regional language!)' }
     ]);
@@ -35,10 +36,20 @@ export function AIChatbot() {
         setIsLoading(true);
 
         try {
+            // Build context from current page
+            const lastPredStr = localStorage.getItem('last_prediction');
+            const lastPrediction = lastPredStr ? JSON.parse(lastPredStr) : null;
+
+            const context = {
+                page: location.pathname,
+                pageName: location.pathname.split('/').pop() || 'Dashboard',
+                lastPrediction: lastPrediction
+            };
+
             const response = await fetch('http://localhost:8000/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message: userMessage }),
+                body: JSON.stringify({ message: userMessage, context }),
             });
             const data = await response.json();
             setMessages(prev => [...prev, { role: 'assistant', content: data.response || 'I am sorry, I could not process that.' }]);

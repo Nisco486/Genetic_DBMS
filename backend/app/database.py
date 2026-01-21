@@ -7,8 +7,10 @@ from dotenv import load_dotenv
 from datetime import datetime
 
 # Find .env in the project root
-base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-env_path = os.path.join(base_dir, ".env")
+# current file is root/backend/app/database.py
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.abspath(os.path.join(current_dir, "..", ".."))
+env_path = os.path.join(project_root, ".env")
 load_dotenv(env_path)
 
 # PostgreSQL Setup

@@ -28,7 +28,11 @@ else:
     if api_key:
         os.environ["OPENAI_API_KEY"] = api_key
         os.environ["OPENAI_BASE_URL"] = "https://openrouter.ai/api/v1"
-    model = f"openai:{os.getenv('AI_MODEL', 'google/gemini-1.5-flash:free')}"
+    
+    model_name = os.getenv("AI_MODEL")
+    if not model_name:
+        model_name = "google/gemini-1.5-flash:free"
+    model = f"openai:{model_name}"
 
 chat_agent = Agent(
     model,
@@ -38,6 +42,8 @@ chat_agent = Agent(
         "Your goal is to help users understand crop recommendations, genetic traits, and environmental data. "
         "Respond in a helpful, friendly manner. "
         "You MUST support Indian languages like Hindi, Marathi, Telugu, Tamil, Bengali, etc., based on the user's input language. "
+        "IMPORTANT: You will sometimes receive 'CONTEXT INFORMATION' (like the current page or prediction results). "
+        "If the user says 'explain this' or 'summarize', refer to that context. "
         "Use the provided tools to fetch real data from the database when answering questions about current stats or crop details. "
         "Keep responses concise and informative."
     )
@@ -52,6 +58,18 @@ def search_crop_info(ctx: RunContext[ChatDeps], query: str) -> str:
         return f"No info found for '{query}'."
     return "\n".join([f"- {c.crop_name}: {c.description}" for c in crops])
 
+from .rag_service import rag_service
+
+@chat_agent.tool
+def search_research_docs(ctx: RunContext[ChatDeps], query: str) -> str:
+    """Search historical research logs, uploaded CSV summaries, and scientific notes."""
+    results = rag_service.search_research_logs(query)
+    if not results:
+        return f"No specific research logs found for '{query}'."
+    
+    formatted = "\n".join([f"[{r['type']}] {r['content']} (Date: {r['timestamp']})" for r in results])
+    return f"Research Finding Snippets:\n{formatted}"
+
 @chat_agent.tool
 def get_genetic_summary(ctx: RunContext[ChatDeps]) -> str:
     """Get a summary of genetic traits available."""
@@ -59,14 +77,28 @@ def get_genetic_summary(ctx: RunContext[ChatDeps]) -> str:
     traits = db.query(GeneticTrait.trait_name).distinct().all()
     return "Available traits: " + ", ".join([t[0] for t in traits])
 
-async def get_chatbot_response(message: str, history: List[dict] = None) -> str:
+async def get_chatbot_response(message: str, context: Optional[dict] = None) -> str:
     db = SessionLocal()
     try:
         deps = ChatDeps(db_session=db)
-        # In a real app, we'd pass history too
-        result = await chat_agent.run(message, deps=deps)
+        
+        # Build prompt with context if available
+        prompt = message
+        if context:
+            ctx_str = "\n".join([f"{k}: {v}" for k, v in context.items()])
+            prompt = (
+                f"CONTEXT INFORMATION:\n{ctx_str}\n\n"
+                f"USER MESSAGE: {message}\n\n"
+                "Please use the context information above if it is relevant to the user message. "
+                "For example, if the user asks 'summarize this', use the context to explain what they are seeing."
+            )
+
+        result = await chat_agent.run(prompt, deps=deps)
         return result.data
     except Exception as e:
-        return f"I'm sorry, I'm having trouble connecting. Error: {str(e)}"
+        error_msg = str(e)
+        if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg:
+            return "Kisan Sahayak is currently busy (Quota Exhausted). Please try again in 60 seconds, or switch to `gemini-1.5-flash` in your .env file."
+        return f"I'm sorry, I'm having trouble connecting. Error: {error_msg}"
     finally:
         db.close()

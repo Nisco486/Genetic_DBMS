@@ -552,10 +552,10 @@ async def create_report(db: Session = Depends(get_db)):
 @app.post("/chat")
 async def chat(request: dict):
     message = request.get("message")
+    context = request.get("context")
     if not message:
         return {"response": "Please provide a message."}
-    response = await get_chatbot_response(message)
-    # response is either str or result.data (which is str if not output_type)
+    response = await get_chatbot_response(message, context=context)
     return {"response": response}
 
 @app.get("/users")

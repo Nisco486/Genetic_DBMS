@@ -141,6 +141,7 @@ class PredictionRecord(Base):
     humidity = Column(Float)
     ph = Column(Float)
     rainfall = Column(Float)
+    region = Column(String(100), nullable=True) # For location-based filtering
     recommended_crop = Column(String(50))
     confidence = Column(Float)
     user_id = Column(Integer, ForeignKey("users.user_id"), nullable=True)

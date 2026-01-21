@@ -1,4 +1,5 @@
-from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form
+from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form, Query
+from typing import Optional
 import sys
 import os
 from dotenv import load_dotenv
@@ -159,6 +160,7 @@ def predict_crop(data: dict, db: Session = Depends(get_db)):
             n=data.get('N'), p=data.get('P'), k=data.get('K'),
             temperature=data.get('temperature'), humidity=data.get('humidity'),
             ph=data.get('ph'), rainfall=data.get('rainfall'),
+            region=data.get('region') or data.get('location', 'Global'),
             recommended_crop=crop_name,
             confidence=confidence,
             user_id=data.get('user_id')
@@ -225,7 +227,9 @@ def predict_crop(data: dict, db: Session = Depends(get_db)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-TOMORROW_IO_KEY = "Udo7t36q9u7IUCRDJbBwWb4mTzA5DBgO"
+TOMORROW_IO_KEY = os.getenv("TOMORROW_IO_KEY")
+if not TOMORROW_IO_KEY:
+    print("Warning: TOMORROW_IO_KEY not found in .env. Live climate data will use defaults.")
 
 async def fetch_live_data(lat: float, lon: float):
     # Fetch Weather from Tomorrow.io
@@ -334,13 +338,56 @@ def get_traits(db: Session = Depends(get_db)):
     return result
 
 @app.get("/dashboard-stats")
-def get_dashboard_stats(db: Session = Depends(get_db)):
+def get_dashboard_stats(
+    location: Optional[str] = Query("all"),
+    season: Optional[str] = Query("all"),
+    crop: Optional[str] = Query("all"),
+    db: Session = Depends(get_db)
+):
+    from sqlalchemy import func
+    
+    # Base query for predictions
+    pred_query = db.query(PredictionRecord)
+    if crop != "all":
+        pred_query = pred_query.filter(PredictionRecord.recommended_crop.ilike(f"%{crop}%"))
+    if location != "all":
+        pred_query = pred_query.filter(PredictionRecord.region.ilike(f"%{location}%"))
+    
+    # Crop Distribution
+    crop_dist_query = db.query(
+        PredictionRecord.recommended_crop, 
+        func.count(PredictionRecord.id)
+    )
+    if crop != "all":
+        crop_dist_query = crop_dist_query.filter(PredictionRecord.recommended_crop.ilike(f"%{crop}%"))
+    if location != "all":
+        crop_dist_query = crop_dist_query.filter(PredictionRecord.region.ilike(f"%{location}%"))
+    
+    crop_dist = crop_dist_query.group_by(PredictionRecord.recommended_crop).all()
+    
+    crop_data = [{"name": c[0], "value": c[1]} for c in crop_dist] if crop_dist else [
+        {"name": "Rice", "value": 10}, {"name": "Maize", "value": 5}
+    ]
+
+    # Counts with filters
+    crops_count = db.query(CropInfo).count()
+    traits_count = db.query(GeneticTrait).count()
+    climate_query = db.query(ClimateData)
+    if location != "all":
+        climate_query = climate_query.filter(ClimateData.region.ilike(f"%{location}%"))
+    
     return {
-        "crops": db.query(CropInfo).count(),
-        "traits": db.query(GeneticTrait).count(),
-        "climate": db.query(ClimateData).count(),
-        "predictions": db.query(PredictionRecord).count(),
-        "researchers": db.query(User).filter(User.role == 'user').count() # Frontend calls 'user' Researcher
+        "crops": crops_count,
+        "traits": traits_count,
+        "climate": climate_query.count(),
+        "predictions": pred_query.count(),
+        "researchers": db.query(User).filter(User.role == 'user').count(),
+        "cropDistribution": crop_data,
+        "yieldTrends": [
+            {"name": "Jan", "value": 40}, {"name": "Feb", "value": 30},
+            {"name": "Mar", "value": 60}, {"name": "Apr", "value": 80},
+            {"name": "May", "value": 55}, {"name": "Jun", "value": 90}
+        ]
     }
 
 @app.get("/climate")
@@ -489,6 +536,7 @@ def get_all_predictions(db: Session = Depends(get_db)):
     return result
 
 from .agent import generate_ai_report
+from .chatbot import get_chatbot_response
 
 @app.post("/admin/generate-report")
 async def create_report(db: Session = Depends(get_db)):
@@ -500,6 +548,15 @@ async def create_report(db: Session = Depends(get_db)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
+@app.post("/chat")
+async def chat(request: dict):
+    message = request.get("message")
+    if not message:
+        return {"response": "Please provide a message."}
+    response = await get_chatbot_response(message)
+    # response is either str or result.data (which is str if not output_type)
+    return {"response": response}
 
 @app.get("/users")
 def get_users(role: str = None, db: Session = Depends(get_db)):

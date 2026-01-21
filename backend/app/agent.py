@@ -44,8 +44,11 @@ if api_key and api_key.startswith("AIza"):
     # Google AI (Gemini) API Key
     os.environ["GEMINI_API_KEY"] = api_key
     os.environ["GOOGLE_API_KEY"] = api_key
-    model_name = os.getenv("AI_MODEL", "google-gla:gemini-1.5-flash") # Default to 1.5 flash for stability
-    model = model_name
+    # Note: Use 'gemini-1.5-flash' or 'gemini-1.5-flash-latest'
+    model_name = os.getenv("AI_MODEL", "gemini-1.5-flash")
+    if ":" in model_name: 
+        model_name = model_name.split(":")[-1]
+    model = f"google-gla:{model_name}"
 else:
     # Default to OpenRouter/OpenAI compatibility
     if api_key:

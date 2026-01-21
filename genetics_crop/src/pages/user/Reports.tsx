@@ -25,6 +25,12 @@ import { cropApi } from '@/lib/api';
 
 const reportTypes = [
   {
+    id: 'ai-summary',
+    title: 'AI Analytical Summary',
+    description: 'AI-powered strategic research insights and breeding recommendations',
+    icon: Bot,
+  },
+  {
     id: 'crop-recommendation',
     title: 'Crop Recommendation Report',
     description: 'Detailed analysis of recommended crops based on soil and climate data',
@@ -44,24 +50,15 @@ const reportTypes = [
   },
 ];
 
-const cropSummaryData = [
-  { name: 'Rice', value: 0 },
-  { name: 'Wheat', value: 0 },
-  { name: 'Maize', value: 0 },
-  { name: 'Cotton', value: 0 },
-  { name: 'Soybean', value: 0 },
-];
-
-const yieldTrendData = [
-  { name: 'Jan', value: 0 },
-  { name: 'Feb', value: 0 },
-  { name: 'Mar', value: 0 },
-  { name: 'Apr', value: 0 },
-  { name: 'May', value: 0 },
-  { name: 'Jun', value: 0 },
-];
-
 export default function Reports() {
+  const [cropSummaryData, setCropSummaryData] = useState([
+    { name: 'Rice', value: 0 },
+    { name: 'Wheat', value: 0 },
+  ]);
+  const [yieldTrendData, setYieldTrendData] = useState([
+    { name: 'Jan', value: 0 },
+    { name: 'Feb', value: 0 },
+  ]);
   const [selectedReport, setSelectedReport] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [aiReportData, setAiReportData] = useState<any>(null);
@@ -80,20 +77,50 @@ export default function Reports() {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [filters]); // Fetch when filters change
 
   const fetchData = async () => {
     try {
-      const data = await cropApi.getDashboardStats();
+      const data = await cropApi.getDashboardStats(filters);
       setSummaryStats([
         { label: 'Total Predictions', value: data.predictions.toString() },
         { label: 'Crops Analyzed', value: data.crops.toString() },
         { label: 'Genetic Traits', value: data.traits.toString() },
-        { label: 'Success Rate', value: '94%' },
+        { label: 'Climate Data', value: data.climate.toString() },
       ]);
+      if (data.cropDistribution) setCropSummaryData(data.cropDistribution);
+      if (data.yieldTrends) setYieldTrendData(data.yieldTrends);
     } catch (error) {
       console.error('Failed to fetch reports stats:', error);
     }
+  };
+
+  const downloadReport = (report: any, format: 'pdf' | 'md') => {
+    if (!report) return;
+
+    const content = `
+# ${report.title}
+Generated on: ${new Date().toLocaleString()}
+
+## Summary
+${report.summary_markdown}
+
+## Key Insights
+${report.key_insights.map((i: string) => `- ${i}`).join('\n')}
+
+## Recommendations
+${report.recommendations.map((r: string) => `- ${r}`).join('\n')}
+    `;
+
+    const blob = new Blob([content], { type: format === 'md' ? 'text/markdown' : 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Project_Report_${new Date().toISOString().split('T')[0]}.${format}`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   const handleGenerateReport = async (format: 'pdf' | 'csv') => {
@@ -118,18 +145,49 @@ export default function Reports() {
           description: 'Project status summary is ready to view.',
         });
       } else {
-        // Simulate other report generation
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        // Real data export for other reports
+        const dataRows = [
+          ['Field', 'Value'],
+          ['Total Predictions', summaryStats[0].value],
+          ['Crops Analyzed', summaryStats[1].value],
+          ['Genetic Traits', summaryStats[2].value],
+          ['Generated At', new Date().toISOString()]
+        ];
+
+        if (format === 'csv') {
+          const csvContent = dataRows.map(e => e.join(",")).join("\n");
+          const blob = new Blob([csvContent], { type: 'text/csv' });
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = `${selectedReport}_report.csv`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        } else {
+          // PDF Fallback (Plain Text/Markdown formatted)
+          const textContent = `# ${selectedReport.toUpperCase()} REPORT\n\n` +
+            dataRows.map(r => `${r[0]}: ${r[1]}`).join('\n');
+          const blob = new Blob([textContent], { type: 'text/plain' });
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = `${selectedReport}_report.txt`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        }
+
         toast({
-          title: 'Report Generated',
-          description: `Your ${format.toUpperCase()} report is ready for download.`,
+          title: 'Report Downloaded',
+          description: `Your ${format.toUpperCase()} report has been saved.`,
         });
       }
     } catch (error) {
       console.error(error);
       toast({
         title: 'Generation Failed',
-        description: 'Failed to generate report. Please check API connection.',
+        description: 'Failed to generate report. Please check API connection and API Key.',
         variant: 'destructive',
       });
     } finally {
@@ -348,9 +406,22 @@ export default function Reports() {
                 {aiReportData ? (
                   <div className="space-y-6">
                     <div className="p-4 rounded-lg bg-primary/5 border border-primary/20">
-                      <h3 className="text-xl font-bold text-primary mb-2">{aiReportData.title}</h3>
-                      <div className="prose dark:prose-invert max-w-none text-sm whitespace-pre-wrap">
-                        {aiReportData.summary_markdown}
+                      <div className="flex justify-between items-start mb-4">
+                        <div>
+                          <h3 className="text-xl font-bold text-primary mb-2">{aiReportData.title}</h3>
+                          <div className="prose dark:prose-invert max-w-none text-sm whitespace-pre-wrap">
+                            {aiReportData.summary_markdown}
+                          </div>
+                        </div>
+                        <Button
+                          variant="hero"
+                          size="sm"
+                          onClick={() => downloadReport(aiReportData, 'md')}
+                          className="flex items-center gap-2"
+                        >
+                          <Download className="w-4 h-4" />
+                          Download
+                        </Button>
                       </div>
                     </div>
 

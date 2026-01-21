@@ -24,12 +24,16 @@ export const cropApi = {
     create: (data: any) => apiRequest('/crops', { method: 'POST', body: JSON.stringify(data) }),
     predict: (data: any) => apiRequest('/predict', { method: 'POST', body: JSON.stringify(data) }),
     predictLive: (data: any) => apiRequest('/predict/live', { method: 'POST', body: JSON.stringify(data) }),
-    getDashboardStats: () => apiRequest('/dashboard-stats'),
+    getDashboardStats: (filters?: any) => {
+        const params = new URLSearchParams(filters).toString();
+        return apiRequest(`/dashboard-stats?${params}`);
+    },
     getTraits: () => apiRequest('/traits'),
     getClimate: () => apiRequest('/climate'),
     getAllPredictions: () => apiRequest('/admin/predictions'),
     getUsers: (role?: string) => apiRequest(`/users${role ? `?role=${role}` : ''}`),
     generateReport: () => apiRequest('/admin/generate-report', { method: 'POST' }),
+    chat: (message: string) => apiRequest('/chat', { method: 'POST', body: JSON.stringify({ message }) }),
     uploadCsv: (formData: FormData) => {
         return fetch(`${API_BASE_URL}/upload-csv`, {
             method: 'POST',
